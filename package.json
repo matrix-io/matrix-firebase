@@ -1,0 +1,26 @@
+{
+  "name": "matrix-firebase",
+  "version": "1.0.0",
+  "description": "Use Firebase with Matrix systems",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/matrix-io/matrix-firebase.git"
+  },
+  "keywords": [
+    "matrix-os",
+    "firebase"
+  ],
+  "author": "Sean Canton <sean.canton@admobilize.com>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/matrix-io/matrix-firebase/issues"
+  },
+  "homepage": "https://github.com/matrix-io/matrix-firebase#readme"
+}
