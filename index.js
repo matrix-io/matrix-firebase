@@ -63,6 +63,12 @@ module.exports = {
     add: function ( userId, deviceId, appId, config ) {
       firebase.child( userId ).child( deviceId ).child( appId ).set( config )
     },
+    set: function ( userId, deviceId, appId, config ) {
+      firebase.child( userId ).child( deviceId ).child( appId ).set( config )
+    },
+    update: function ( userId, deviceId, appId, config ) {
+      firebase.child( userId ).child( deviceId ).child( appId ).update( config )
+    },
     get: function ( userId, deviceId, appId, cb ) {
       firebase.child( userId + '/' + deviceId + '/' + appId ).on( 'value', function ( s ) {
         if ( !_.isNull( s.val() ) ) cb( null, s.val() )
@@ -72,6 +78,16 @@ module.exports = {
     },
     remove: function ( userId, deviceId, appId, cb ) {
       firebase.child( userId ).child( deviceId ).child( appId ).remove( cb );
+    },
+    onInstall: function( userId, deviceId, cb ){
+      firebase.child( userId ).child( deviceId ).on('child_added', function(n){
+        cb();
+      });
+    },
+    onChange: function( userId, deviceId, appId, cb ){
+      firebase.child( userId ).child( deviceId ).child( appId ).on('child_changed', function(n){
+        cb();
+      });
     }
   }
 }

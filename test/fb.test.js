@@ -19,6 +19,8 @@ describe( 'matrix firebase module', function () {
 
   describe( 'lookups', function () {
     var ip;
+
+    // this is because FB loves to throw more data
     beforeEach( function () {
       ip = true;
     });
@@ -51,11 +53,39 @@ describe( 'matrix firebase module', function () {
     })
   })
 
+
+  describe('events', function(){
+
+    it('supports onInstall to watch for app installs', function(done){
+      var ip = true;
+      fb.app.onInstall( 'testuser', 'testdevice', function(){
+        if (ip) done();
+        ip = false;
+      });
+
+      fb.app.add( 'testuser', 'testdevice', 'testapp2', {
+        config: true
+      });
+    })
+
+    it('supports onChange to watch for app config changes', function(done){
+      fb.app.onChange('testuser', 'testdevice', 'testapp2', function(){
+        done();
+      });
+
+      fb.app.update( 'testuser', 'testdevice', 'testapp2', {
+        config: 'it\'s quite complicated really'
+      });
+    })
+  })
+
+
   // need to do cleanup
   after( function ( done ) {
     fb.user.remove( 'testuser', function ( err ) {
       assert( _.isNull( err ) );
       done();
     });
-})
+  })
+
 });
