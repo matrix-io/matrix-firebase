@@ -22,5 +22,8 @@
   "bugs": {
     "url": "https://github.com/matrix-io/matrix-firebase/issues"
   },
-  "homepage": "https://github.com/matrix-io/matrix-firebase#readme"
+  "homepage": "https://github.com/matrix-io/matrix-firebase#readme",
+  "dependencies": {
+    "jsonwebtoken": "^5.7.0"
+  }
 }
