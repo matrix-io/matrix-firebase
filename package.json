@@ -24,6 +24,8 @@
   },
   "homepage": "https://github.com/matrix-io/matrix-firebase#readme",
   "dependencies": {
-    "jsonwebtoken": "^5.7.0"
+    "debug": "^2.2.0",
+    "jsonwebtoken": "^5.7.0",
+    "lodash": "^4.11.1"
   }
 }
