@@ -18,34 +18,30 @@ module.exports = {
       return console.error("Firebase init needs token", token)
     }
 
-    if ( _.isUndefined(deviceId)){
-      var path = '/' + userId;
-    } else {
-      var path = '/' + userId +'/'+ deviceId.replace(/[\W\D]/g,'');
-    }
+    var path = '/' + userId +'/'+ deviceId;
 
     debug('Init Firebase', userId, deviceId, path )
 
 
     var F = require( 'firebase' );
-    firebase = new F( 'https://admobilize.firebaseio.com/appconf/' + userId);
+    firebase = new F( 'https://admobilize.firebaseio.com/appconf' + path);
 
     firebase.authWithCustomToken(token, function(err, authData) {
       if(err) {
         if(err.code === 'INVALID_CREDENTIALS') {
           return cb('Invalid Firebase credentials', err);
         }
-        console.warn('Unhandled Firebase error condition', err);
+        debug('Unhandled Firebase error condition', err);
         return cb(err);
       }
 
-      console.log('Firebase auth successful for user %s', authData.auth.uid);
+      debug('Firebase auth successful for user %s', authData.auth.uid);
 
       var authData = firebase.getAuth();
       if (authData) {
-        console.log("Firebase:", firebase.toString());
+        debug("Firebase:", firebase.toString());
       } else {
-        console.log("User is logged out");
+        debug("User is logged out");
       }
       cb(null, { userId: authData.auth.uid })
     });
@@ -63,50 +59,45 @@ module.exports = {
   instance: firebase,
 
   device: {
-    add: function ( deviceId ) {
-      var o = {}
-      o[ deviceId ] = 1;
-      firebase.set( o );
-    },
-    get: function ( deviceId, cb ) {
-      firebase.child( deviceId ).on( 'value', function ( s ) {
+    get: function ( cb ) {
+      firebase.on( 'value', function ( s ) {
         if ( !_.isNull( s.val() ) ) cb( null, s.val() )
       }, function ( e ) {
         if ( !_.isNull( s.val() ) ) cb( e )
       } )
-    },
-    remove: function ( deviceId, cb ) {
-      firebase.child( deviceId ).remove( cb );
     }
   },
 
   app: {
-    add: function ( deviceId, appId, config ) {
-      firebase.child( deviceId ).child( appId ).set( config )
+    add: function ( appId, config ) {
+      if (arguments.length === 2){
+        // device level
+        firebase.child( appId ).set( config )
+      }
     },
-    set: function ( deviceId, appId, config ) {
-      firebase.child( deviceId ).child( appId ).set( config )
+    set: function ( appId, config ) {
+      firebase.child( appId ).set( config )
     },
-    update: function ( deviceId, appId, config ) {
-      firebase.child( deviceId ).child( appId ).update( config )
+    update: function ( appId, config ) {
+      firebase.child( appId ).update( config )
     },
-    get: function ( deviceId, appId, cb ) {
-      firebase.child(  '/' + deviceId + '/' + appId ).on( 'value', function ( s ) {
+    get: function (  appId, cb ) {
+      firebase.child( appId ).on( 'value', function ( s ) {
         if ( !_.isNull( s.val() ) ) cb( null, s.val() )
       }, function ( e ) {
         if ( !_.isNull( s.val() ) ) cb( e )
       } )
     },
-    remove: function ( deviceId, appId, cb ) {
-      firebase.child( deviceId ).child( appId ).remove( cb );
+    remove: function ( appId, cb ) {
+      firebase.child( appId ).remove( cb );
     },
-    onInstall: function( deviceId, cb ){
-      firebase.child( deviceId ).on('child_added', function(n){
+    onInstall: function( cb ){
+      firebase.on('child_added', function(n){
         cb();
       });
     },
-    onChange: function( deviceId, appId, cb ){
-      firebase.child( deviceId ).child( appId ).on('child_changed', function(n){
+    onChange: function( appId, cb ){
+      firebase.child( appId ).on('child_changed', function(n){
         cb();
       });
     }
