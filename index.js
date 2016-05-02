@@ -98,24 +98,40 @@ module.exports = {
         } else {
           console.log("User is logged out");
         }
-        var plugs = { mxss: {
-          deviceId: options.deviceId,
-          user: options.username,
-          url: options.streamingServer + '?deviceToken=' + options.deviceSecret
-        }}
+        var plugs = {
+          mxss: {
+            deviceId: options.deviceId,
+            user: options.username,
+            url: options.streamingServer + '?deviceToken=' + options.deviceSecret,
+            url: 'rtsp://dummy',
+            'url': '192.168.99.100:3000',
+          },
+          firebase: {
+            "apiEndpoint": "http://demo.admobilize.com/v1/device/token",
+            "url": "https://admobilize.firebaseio.com/VES/"
+          }
+        }
+
 
         var obj = {
           // make in the future so VES provisioning works right
           'createdAt': Date.now()+100000,
           'deviceId': options.deviceId,
           'instance': {
+            // debug
+            'ipAddress': '192.168.99.1',
             'zone': 'us-central1-b'
           },
           'userId': options.userId,
           'deviceSecret': options.deviceSecret,
           'schema': options.schema,
+          'source': 'rtsp://dummy',
           plugins: plugs
         }
+
+
+        // clear instance
+        vesFirebase.set(null);
 
         vesFirebase.set(obj);
 
