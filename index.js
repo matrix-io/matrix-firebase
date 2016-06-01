@@ -104,6 +104,9 @@ module.exports = {
           cb(null, newVal)
         });
       });
+    },
+    onStatusChange: function(cb){
+      vesFirebase.child('instance/status').on('child_changed', cb)
     }
   },
 
