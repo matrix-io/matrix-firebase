@@ -3,11 +3,6 @@ var _ = require( 'lodash' );
 var D = require('debug');
 var debug = new D('firebase')
 
-// application keys as names
-var fbx = {};
-
-
-
 
 // use child to maintain position
 module.exports = {
@@ -20,24 +15,20 @@ module.exports = {
       return console.error("Firebase init needs token", token)
     }
 
-    if ( _.isUndefined(deviceId)){
-      var path = '/' + userId;
-    } else {
-      var path = '/' + userId +'/'+ deviceId.replace(/[\W\D]/g,'');
-    }
+    var path = '/' + userId +'/'+ deviceId;
 
     debug('Init Firebase', userId, deviceId, path )
 
 
     var F = require( 'firebase' );
-    firebase = new F( 'https://admobilize.firebaseio.com/appconf/' + userId);
+    firebase = new F( 'https://admobilize.firebaseio.com/appconf' + path);
 
     firebase.authWithCustomToken(token, function(err, authData) {
       if(err) {
         if(err.code === 'INVALID_CREDENTIALS') {
           return cb('Invalid Firebase credentials', err);
         }
-        console.warn('Unhandled Firebase error condition', err);
+        debug('Unhandled Firebase error condition', err);
         return cb(err);
       }
 
@@ -47,7 +38,7 @@ module.exports = {
       if (authData) {
         debug("Firebase:", firebase.toString());
       } else {
-        console.log("User is logged out");
+        debug("User is logged out");
       }
       cb(null, { userId: authData.auth.uid })
     });
@@ -66,19 +57,26 @@ module.exports = {
 
   // for integrating with VES server
   ves: {
-    init: function(userId, deviceId, token, cb){
-      if ( _.isUndefined(userId)){
-        return console.error("VES Firebase init needs userId", userId)
+    init: function(options, cb){
+      // options : userId, token, deviceId, deviceRecordId,
+
+
+      if ( _.isUndefined(options.userId)){
+        return console.error("VES Firebase init needs userId", options.userId)
       }
 
-      if ( _.isUndefined(token)){
-        return console.error("VES Firebase init needs token", token)
+      if ( _.isUndefined(options.token)){
+        return console.error("VES Firebase init needs token", options.token)
+      }
+
+      if ( _.isUndefined(options.deviceRecordId)){
+        return console.error("VES Firebase init needs deviceRecordId")
       }
 
       var F = require( 'firebase' );
-      vesFirebase = new F( 'https://admobilize.firebaseio.com/VES/' + userId + '/' + deviceId);
+      vesFirebase = new F( 'https://admobilize.firebaseio.com/VES/' + options.deviceRecordId + '/');
 
-      vesFirebase.authWithCustomToken(token, function(err, authData) {
+      vesFirebase.authWithCustomToken(options.token, function(err, authData) {
         if(err) {
           if(err.code === 'INVALID_CREDENTIALS') {
             return cb('Invalid Firebase credentials', err);
@@ -95,13 +93,47 @@ module.exports = {
         } else {
           console.log("User is logged out");
         }
+        var plugs = {
+          mxss: {
+            deviceId: options.deviceId,
+            user: options.username,
+            url: options.streamingServer + '?deviceToken=' + options.deviceSecret,
+            'url': '192.168.99.100:3000',
+          },
+          firebase: {
+            "apiEndpoint": "http://demo.admobilize.com/v1/device/token",
+            "url": "https://admobilize.firebaseio.com/VES/"
+          }
+        }
 
-        vesFirebase.child('instance/zone').set('us-central1-b');
 
-        vesFirebase.on('child_changed', function(newVal, old){
-          console.log('VES FIREBASE', newVal, old)
+        var obj = {
+          // make in the future so VES provisioning works right
+          'createdAt': Date.now()+100000,
+          'deviceId': options.deviceId,
+          'instance': {
+            // debug
+            'ipAddress': '192.168.99.1',
+            'zone': 'us-central1-b'
+          },
+          'userId': options.userId,
+          'deviceSecret': options.deviceSecret,
+          'schema': options.schema,
+          'source': 'rtsp://dummy',
+          plugins: plugs
+        }
+
+
+        // clear instance
+        vesFirebase.set(null);
+
+        vesFirebase.set(obj);
+
+
+        vesFirebase.on('child_changed', function(newVal){
+          console.log('VES FIREBASE △', newVal.key().blue, ':', newVal.val())
           // will respond with instance data
-          cb(null, newVal)
+          cb(null, newVal.val())
         });
       });
     },
@@ -111,50 +143,45 @@ module.exports = {
   },
 
   device: {
-    add: function ( deviceId ) {
-      var o = {}
-      o[ deviceId ] = 1;
-      firebase.set( o );
-    },
-    get: function ( deviceId, cb ) {
-      firebase.child( deviceId ).on( 'value', function ( s ) {
+    get: function ( cb ) {
+      firebase.on( 'value', function ( s ) {
         if ( !_.isNull( s.val() ) ) cb( null, s.val() )
       }, function ( e ) {
         if ( !_.isNull( s.val() ) ) cb( e )
       } )
-    },
-    remove: function ( deviceId, cb ) {
-      firebase.child( deviceId ).remove( cb );
     }
   },
 
   app: {
-    add: function ( deviceId, appId, config ) {
-      firebase.child( deviceId ).child( appId ).set( config )
+    add: function ( appId, config ) {
+      if (arguments.length === 2){
+        firebase.child( appId ).set( config )
+      }
     },
-    set: function ( deviceId, appId, config ) {
-      firebase.child( deviceId ).child( appId ).set( config )
+    set: function ( appId, config ) {
+      firebase.child( appId ).set( config )
     },
-    update: function ( deviceId, appId, config ) {
-      firebase.child( deviceId ).child( appId ).update( config )
+    update: function ( appId, config ) {
+      firebase.child( appId ).update( config )
     },
-    get: function ( deviceId, appId, cb ) {
-      firebase.child(  '/' + deviceId + '/' + appId ).on( 'value', function ( s ) {
-        if ( !_.isNull( s.val() ) ) cb( null, s.val() )
+    get: function (  appId, cb ) {
+      debug(appId.blue + ' (config)>'.grey)
+      firebase.child( appId ).once( 'value', function ( s ) {
+        cb( null, s.val() )
       }, function ( e ) {
         if ( !_.isNull( s.val() ) ) cb( e )
       } )
     },
-    remove: function ( deviceId, appId, cb ) {
-      firebase.child( deviceId ).child( appId ).remove( cb );
+    remove: function ( appId, cb ) {
+      firebase.child( appId ).remove( cb );
     },
-    onInstall: function( deviceId, cb ){
-      firebase.child( deviceId ).on('child_added', function(n){
+    onInstall: function( cb ){
+      firebase.on('child_added', function(n){
         cb();
       });
     },
-    onChange: function( deviceId, appId, cb ){
-      firebase.child( deviceId ).child( appId ).on('child_changed', function(n){
+    onChange: function( appId, cb ){
+      firebase.child( appId ).on('child_changed', function(n){
         cb();
       });
     }
