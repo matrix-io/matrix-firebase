@@ -3,11 +3,6 @@ var _ = require( 'lodash' );
 var D = require('debug');
 var debug = new D('firebase')
 
-// application keys as names
-var fbx = {};
-
-
-
 
 // use child to maintain position
 module.exports = {
@@ -103,7 +98,6 @@ module.exports = {
             deviceId: options.deviceId,
             user: options.username,
             url: options.streamingServer + '?deviceToken=' + options.deviceSecret,
-            url: 'rtsp://dummy',
             'url': '192.168.99.100:3000',
           },
           firebase: {
@@ -158,7 +152,6 @@ module.exports = {
   app: {
     add: function ( appId, config ) {
       if (arguments.length === 2){
-        // device level
         firebase.child( appId ).set( config )
       }
     },
