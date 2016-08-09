@@ -1,9 +1,13 @@
-var firebaseDevices, firebaseAppList, vesFirebase, firebaseApps;
+var firebaseDevices, firebaseAppList, vesFirebase, firebaseAppMap, firebaseAppRecords, firebaseDevice;
 var _ = require( 'lodash' );
 var D = require('debug');
 var debug = new D('firebase')
+var F = require( 'firebase' );
 
+firebaseAppRecords = {};
+firebaseAppMap = {};
 
+var uuid = require('uuid')
 // use child to maintain position
 module.exports = {
   init: function ( userId, deviceId, token, cb ) {
@@ -20,10 +24,9 @@ module.exports = {
     debug('Init Firebase', userId, deviceId, path )
 
 
-    var F = require( 'firebase' );
     // firebase = new F( 'https://admobilize.firebaseio.com/appconf' + path);
-    firebaseDevice = new F( 'https://admobilize-testing.firebaseio.com/devices/' + deviceId + '/public' );
-    firebaseAppList = new F( 'https://admobilize-testing.firebaseio.com/users/' + deviceId + '/devices/'+ deviceId + '/apps' );
+    firebaseDevice = new F( 'https://admobilize-testing.firebaseio.com/devices/' + deviceId );
+    firebaseAppList = new F( 'https://admobilize-testing.firebaseio.com/users/' + userId + '/devices/'+ deviceId + '/apps' );
 
     console.log('==========='.rainbow, token)
 
@@ -34,46 +37,20 @@ module.exports = {
     //   storageBucket: "admobilize-testing.appspot.com",
     // };
     // firebase.initializeApp(config);
-    firebase.authWithCustomToken(token, function(err, authData) {
-      log('catch!')
-      if(err) {
-        debug(err, authData);
-        if(err.code === 'INVALID_CREDENTIALS') {
-          return cb('Invalid Firebase credentials', err);
-        }
-        debug('Unhandled Firebase error condition', err);
-        return cb(err);
-      }
 
-      log('then!')
-      debug('Firebase auth successful for user', authData);
 
-      var authData = firebase.getAuth();
-      if (authData) {
-        debug("Firebase:", firebase.toString());
-      } else {
-        debug("User is logged out");
-      }
-
-      // populate local app index
-      getAllApps();
-
-      cb(null, { userId: authData.auth.uid })
+    firebaseDevice.authWithCustomToken(token, function(err, authData) {
+      if(err) {  return cb(err);    }
+      debug('Firebase successful for: device')
     });
 
-    firebase.on( 'value',
-    function ( snap ) {
-      console.log( 'FB>', snap.val() )
-    },
-    function ( err ) {
-      console.log( 'Firebase Error', err );
-    }
-  );
+    firebaseAppList.authWithCustomToken(token, function (err, authData) {
+      if(err) {  return cb(err);    }
+      debug('Firebase successful for: appList');
+      getAllApps(deviceId, cb);
+    })
 },
 
-device: firebaseDevice,
-appList: firebaseAppList,
-apps: firebaseApps,
 // for integrating with VES server
 ves: {
   init: function(options, cb){
@@ -182,64 +159,68 @@ device: {
 
 app: {
   appKeys : appKeys,
-  add: function ( deviceId, appId, config ) {
-    if (arguments.length === 3){
-      firebase.child( ['deviceapps', deviceId, appId].join('/') ).set( config )
+  add: function ( config, policy ) {
+    var newAppId = uuid.v4();
+    var appName = config.name;
+    // user-device record
+    var o = {};
+    o[newAppId] = { name: appName };
+    firebaseAppList.set(o);
+
+    // deviceapps
+    firebaseApps.child( appId + '/config' ).set( config )
+
+    if ( !_.isUndefined(policy)){
+      firebaseApps.child( appId + '/policy' ).set( policy )
     }
-    if (arguments.length === 2){
-      // assume config, gen ID
-      firebase.child( ['deviceapps', deviceId, appId].join('/') ).set( config )
-    } else {
-      console.error('firebase error on app.add')
-    }
+
+    firebaseApps.child(appId + '/meta').set({ name: appName })
   },
-  set: function (  deviceId, appId, config ) {
-    firebase.child(['deviceapps', deviceId, appId].join('/')).set( config )
+
+  setConfig: function (  deviceId, appId, config ) {
+    firebaseAppMap[appId].child('config/').set( config )
   },
-  update: function (  deviceId, appId, config ) {
-    firebase.child(['deviceapps', deviceId, appId].join('/') ).update( config )
+
+  updateConfig: function (  appId, config ) {
+    firebaseAppMap[appId].child('config/').update( config )
   },
-  get: function (   deviceId, appId, cb ) {
+
+  get: function (  appId, cb ) {
     debug(appId.blue + ' (config)>'.grey)
-    firebase.child( ['deviceapps', deviceId, appId].join('/') ).once( 'value', function ( s ) {
+    firebaseAppMap[appId].once( 'value', function ( s ) {
       cb( null, s.val() )
     }, function ( e ) {
       if ( !_.isNull( s.val() ) ) cb( e )
     })
   },
+
   getPolicy: function( deviceId, appId, cb ){
-    firebase.child(['deviceapps', deviceId, appId].join('/') + '/policy').on('value', function(data){
+    firebaseApps.child( appId + '/policy').on('value', function(data){
       debug('app.policy>', data)
       cb(null, data)
     })
   },
   getMeta: function( deviceId, appId, cb ){
-    firebase.child(['deviceapps', deviceId, appId].join('/')+ '/meta').on('value', function(data){
+    firebaseApps.child( appId + '/meta').on('value', function(data){
       debug('app.meta>', data)
       cb(null, data)
     })
   },
   watchRuntime: function( deviceId, appId, cb ){
-    firebase.child(['deviceapps', deviceId, appId].join('/') + '/runtime').on('child_changed', function(data){
+    firebaseApps.child( appId + '/runtime').on('child_changed', function(data){
       debug('app.runtime>', data)
       cb(data.val())
     })
   },
   watchConfig: function( deviceId, appId, cb ){
-    firebase.child(['deviceapps', deviceId, appId].join('/') + '/config').on('child_changed', function(data){
+    firebaseApps.child( appId + '/config').on('child_changed', function(data){
       debug('app.config>', data)
       cb(data.val())
     })
   },
   getAll: getAllApps,
-  getConfigByName( deviceId, appName, cb ){
-    var appId = getAppKeyFromName(appName);
-    firebase.child(['deviceapps', deviceId, appId].join('/') ).on('value', function(data){
-      cb(null, data.val().config );
-    })
-  },
   getIDForName( appName, cb){
-    firebase.child('apps/').orderByKey().on('value', function(data){
+    firebaseAppList.orderByKey().on('value', function(data){
       var app = _.map(data, function (app) {
         return (app.name == appName)
       });
@@ -250,40 +231,54 @@ app: {
       cb(null, app.key );
     })
   },
+
+  //
   remove: function ( appId, cb ) {
-    appId = checkId(appId);
     if ( appId ){
-      firebase.child( 'apps/' + appId ).remove( cb );
+      // deviceapps
+      firebaseAppMap[appId].remove(cb);
+
+      // user-device list
+      firebaseAppList.child(appId).remove();
+      delete firebaseAppList[appId];
     }
   },
   onInstall: function( cb ){
-    firebase.child( 'apps/' ).on('child_added', function(n){
+    firebaseAppList.on('child_added', function(n){
       cb();
     });
   },
   onChange: function(appId, cb ){
-    firebase.child(  'apps/' + appId ).on('child_changed', function(n){
+    firebaseAppMap[appId].on('child_changed', function(n){
       cb();
     });
   }
 }
-}
 
-function getAllApps( cb ){
+function getAllApps( deviceId, cb ){
   appKeys = {};
   firebaseAppList.orderByKey().on('value', function(data){
+    debug('app.getAll>', data.key(), data.val());
     // store for use later
-    appKeys[data.key()] = data.val().name;
 
-    var fbApp = new F( 'https://admobilize-testing.firebaseio.com/deviceapps/' + data.key() + '/public');
+    if ( !_.isNull(data.val()) ){
 
-    // make apps collection available
-    fbApp.on('value', function(data){
-      firebaseApps.push(data.val());;
-    });
+      var appMap = data.val();
 
+      _.each(appMap, function(app, appId){
+        debug(app);
+        var fbApp = new F( 'https://admobilize-testing.firebaseio.com/deviceapps/' + [ deviceId, appId ].join('/') + '/public');
+        firebaseAppMap[appId] = fbApp;
 
-    debug('app.getAll>', data);
+        fbApp.on('value', function(d){
+          debug('app>', app.name, d.val())
+          firebaseAppRecords[appId] = d.val();
+        });
+      })
+      // make apps collection available
+
+    }
+
     cb(null, data);
   })
 }
