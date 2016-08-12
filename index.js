@@ -137,6 +137,18 @@ app: {
     })
   },
 
+  getConfigKey: function( appId, key, cb ){
+    firebaseAppRefMap[appId].child('/config/' + key).on('value', function(data){
+      debug('app.config>', data.val())
+      cb(null, data.val())
+    })
+  },
+
+  setConfigKey: function( appId, key, value, cb ){
+    debug('config>', key, value);
+    firebaseAppRefMap[appId].child('/config/' + key).set(value, cb);
+  },
+
   getPolicy: function( appId, cb ){
     firebaseAppRefMap[appId].child('/policy').on('value', function(data){
       debug('app.policy>', data.val())
@@ -233,7 +245,7 @@ function getAllApps( deviceId, token, cb ){
       // make apps collection available
 
     } else {
-      console.warn('No apps available for', deviceId, appId )
+      console.warn('No apps available for', deviceId )
       cb()
     }
 
