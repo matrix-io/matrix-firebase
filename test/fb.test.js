@@ -3,12 +3,27 @@ var should = require( 'should' );
 var assert = require( 'assert' );
 var _ = require( 'lodash' );
 var API = require( 'matrix-node-sdk' );
-var jwt = require('jsonwebtoken')
+var jwt = require('jsonwebtoken');
+
+var mockfb = require('mockfirebase')
+var Firebase = require('firebase');
 
 var fb = require( '../index.js' );
+
 describe( 'matrix firebase module', function () {
   var token;
+
+  // demo.admobilize@gmail.com
+  var userId = '5771a455c23bec1f00d0f36c';
+  var appId = 'test-app-id';
+  var deviceId = '123456-demo-deviceid';
+
+  firebaseDeviceRef = new F( 'https://admobilize-testing.firebaseio.com/devices/' + deviceId + '/public');
+  firebaseAppListRef = new F( 'https://admobilize-testing.firebaseio.com/users/' + userId + '/devices/'+ deviceId + '/apps' );
+  firebaseAppRef = new F('https://admobilize-testing.firebaseio.com/deviceapps/'+ appId + '/public')
+
   it( 'can connect to firebase with a device token', function ( done ) {
+
     if ( !_.has(process.env, 'MATRIX_DEVICE_ID') || !_.has(process.env, 'MATRIX_DEVICE_SECRET') ){
       done(' needs device secret and device id to test firebase')
     }
