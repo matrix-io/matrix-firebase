@@ -4,6 +4,10 @@ var D = require('debug');
 var debug = new D('firebase')
 var F = require( 'firebase' );
 
+var async = require('async');
+
+var refreshApps;
+
 firebaseAppRecords = {};
 firebaseAppRefMap = {};
 
@@ -39,7 +43,9 @@ module.exports = {
     // };
     // firebase.initializeApp(config);
 
-
+    refreshApps = function(){
+      getAllApps(deviceId, token, cb);
+    }
 
     firebaseUserDevicesRef.authWithCustomToken(token, function(err, authData) {
       if(err) {  return cb(err);    }
@@ -56,7 +62,7 @@ module.exports = {
     firebaseAppListRef.authWithCustomToken(token, function (err, authData) {
       if(err) {  return cb(err);    }
       debug('Firebase successful for: appList');
-      getAllApps(deviceId, token, cb);
+      refreshApps();
     })
 },
 
@@ -91,20 +97,34 @@ app: {
     var newAppId = uuid.v4();
     var appName = config.name;
     // user-device record
-    var o = {};
-    o[newAppId] = { name: appName };
-    firebaseAppList.set(o);
+    //
+    //
+    async.parallel([
+      function setAppList(cb){
+        var o = {};
+        o[newAppId] = { name: appName };
+        firebaseAppListRef.set(o, cb);
+      },
+      function setAppConfig(cb){
+        // deviceapps
+        firebaseAppsRef.child( appId + '/config' ).set( config, cb )
 
-    // deviceapps
-    firebaseApps.child( appId + '/config' ).set( config )
+      },
+      function setAppPolicy(cb){
+        // set policy
+        if ( !_.isUndefined(policy)){
+          firebaseAppsRef.child( appId + '/policy' ).set( policy, cb )
+        } else { cb(); }
 
-    // set policy
-    if ( !_.isUndefined(policy)){
-      firebaseApps.child( appId + '/policy' ).set( policy )
-    }
+      },
+      function setAppMeta(cb){
 
-    // set meta
-    firebaseApps.child(appId + '/meta').set({ name: appName })
+        // set meta
+        firebaseAppsRef.child(appId + '/meta').set({ name: appName })
+      },
+    ], function(err){
+      refreshApps();
+    })
   },
 
   setConfig: function (  deviceId, appId, config ) {

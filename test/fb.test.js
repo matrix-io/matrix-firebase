@@ -44,7 +44,7 @@ describe( 'matrix firebase module', function () {
   });
 
 
-  describe( 'lookups', function () {
+  describe( 'lookups', function (){
     var ip;
 
     // this is because FB loves to throw more data
@@ -61,6 +61,7 @@ describe( 'matrix firebase module', function () {
         assert( _.has( u, 'testdevice' ) );
         if ( ip ) done();
       });
+
     });
 
     it( 'can get apps for a device', function ( done ) {
