@@ -1,4 +1,11 @@
-var firebaseDevices, firebaseAppListRef, vesFirebase, firebaseAppRefMap, firebaseAppRecords, firebaseDeviceRef;
+var firebaseDevices;
+var firebaseAppListRef;
+var firebaseAppRefMap;
+var firebaseAppRecords;
+var firebaseDeviceRef;
+var firebaseUserDevicesRef;
+var firebaseQueueRef;
+
 var _ = require( 'lodash' );
 var D = require('debug');
 var debug = new D('firebase')
@@ -8,6 +15,8 @@ var async = require('async');
 
 var refreshApps;
 
+var userToken;
+
 firebaseAppRecords = {};
 firebaseAppRefMap = {};
 
@@ -16,11 +25,11 @@ var uuid = require('uuid')
 module.exports = {
   init: function ( userId, deviceId, token, cb ) {
     if ( _.isUndefined(userId)){
-      return console.error("Firebase init needs userId", userId)
+      return console.error('Firebase init needs userId', userId)
     }
 
     if ( _.isUndefined(token)){
-      return console.error("Firebase init needs token", token)
+      return console.error('Firebase init needs token', token)
     }
 
     var path = '/' + userId +'/devices/'+ deviceId;
@@ -32,6 +41,8 @@ module.exports = {
     firebaseDeviceRef = new F( 'https://admobilize-testing.firebaseio.com/devices/' + deviceId + '/public');
     firebaseAppListRef = new F( 'https://admobilize-testing.firebaseio.com/users/' + userId + '/devices/'+ deviceId + '/apps' );
     firebaseUserDevicesRef = new F('https://admobilize-testing.firebaseio.com/users/' + userId + '/devices/' )
+
+    firebaseQueueRef = new F('https://admobilize-testing.firebaseio.com/queue/tasks')
 
     debug('=====firebase====='.rainbow, token, '🔥 🔮')
 
@@ -47,27 +58,62 @@ module.exports = {
       getAllApps(deviceId, token, cb);
     }
 
-    firebaseUserDevicesRef.authWithCustomToken(token, function(err, authData) {
+    firebaseUserDevicesRef.authWithCustomToken(token, function(err) {
       if(err) {  return cb(err);    }
       debug('Firebase successful for: device')
     });
 
+    firebaseQueueRef.authWithCustomToken(token, function(err){
+      if (err) return cb(err);
+      debug('Firebase successful for: worker queue')
+    })
 
 
-    firebaseDeviceRef.authWithCustomToken(token, function(err, authData) {
+    firebaseDeviceRef.authWithCustomToken(token, function(err) {
       if(err) {  return cb(err);    }
       debug('Firebase successful for: device')
     });
 
-    firebaseAppListRef.authWithCustomToken(token, function (err, authData) {
+    firebaseAppListRef.authWithCustomToken(token, function (err) {
       if(err) {  return cb(err);    }
       debug('Firebase successful for: appList');
       refreshApps();
     })
+
+    userToken = token;
 },
 
 
 device: {
+  //based on matrix-data-objects / docs / deviceregistration.md
+  // send to `queue/tasks`
+  /*{
+  "_state": "register-device",
+  "token": "user-token-here",
+  "device": {
+    "meta": {
+      "type": "matrix",
+      "osVersion": "some-raspian-version",
+      "version": "some-mos-version",
+      "hardwareId": "some-hw-identifier"
+      name and description optional
+    }
+  }
+  }
+  */
+  add: function( options, cb ){
+    var o = {
+      _state: 'register-device',
+      token: userToken,
+      device: { meta: {} }
+    };
+
+    // add
+    _.extend(o.device.meta, options)
+
+    debug('[FB] + device', o);
+    firebaseQueueRef.push(o, cb);
+  },
   get: function ( cb ) {
     firebaseDeviceRef.on( 'value', function ( s ) {
       if ( !_.isNull( s.val() ) ) cb( null, s.val() )
@@ -82,8 +128,8 @@ device: {
       cb( e )
     } )
   },
-  meta: function( deviceId, cb ){
-    firebaseDevice.child('meta').once('value',  function ( s ) {
+  meta: function( cb ){
+    firebaseDeviceRef.child('meta').once('value',  function ( s ) {
       cb( null, s.val() )
     }, function ( e ) {
       cb( e )
@@ -93,9 +139,11 @@ device: {
 
 app: {
   appKeys : appKeys,
-  add: function ( config, policy ) {
+  add: function ( deviceId, config, policy ) {
     var newAppId = uuid.v4();
     var appName = config.name;
+
+    var newAppRef = getFirebaseAppRef(deviceId, newAppId);
     // user-device record
     //
     //
@@ -107,28 +155,31 @@ app: {
       },
       function setAppConfig(cb){
         // deviceapps
-        firebaseAppsRef.child( appId + '/config' ).set( config, cb )
+        newAppRef.child( '/config' ).set( config, cb )
 
       },
       function setAppPolicy(cb){
         // set policy
         if ( !_.isUndefined(policy)){
-          firebaseAppsRef.child( appId + '/policy' ).set( policy, cb )
+          newAppRef.child( '/policy' ).set( policy, cb )
         } else { cb(); }
 
       },
       function setAppMeta(cb){
-
         // set meta
-        firebaseAppsRef.child(appId + '/meta').set({ name: appName })
+        newAppRef.child('/meta').set({ name: appName }, cb)
       },
     ], function(err){
+      if (err) console.error(err);
+
+      console.log(appName, newAppId, 'added to firebase ->', deviceId)
       refreshApps();
     })
   },
 
-  setConfig: function (  deviceId, appId, config ) {
-    firebaseAppRefMap[appId].child('config/').set( config )
+  setConfig: function ( appId, config, cb ) {
+    debug('set Config [fb]>', appId, config)
+    firebaseAppRefMap[appId].child('config/').set( config, cb )
   },
 
   updateConfig: function (  appId, config ) {
@@ -194,7 +245,7 @@ app: {
       cb(data.val())
     })
   },
-  watchConfig: function( deviceId, appId, cb ){
+  watchConfig: function( appId, cb ){
     firebaseAppRefMap[appId].child('/config').on('child_changed', function(data){
       debug('app.config>', data.val())
       cb(data.val())
@@ -235,6 +286,10 @@ app: {
 }
 }
 
+function getFirebaseAppRef( deviceId, appId ){
+  return new F( 'https://admobilize-testing.firebaseio.com/deviceapps/' + [ deviceId, appId ].join('/') + '/public');
+}
+
 function getAllApps( deviceId, token, cb ){
   appKeys = {};
   firebaseAppListRef.orderByKey().on('value', function(data){
@@ -253,7 +308,7 @@ function getAllApps( deviceId, token, cb ){
         fbApp.authWithCustomToken(token, function(err, authData) {
           if(err) {  return cb(err);    }
           debug('Firebase successful for app:', app.name)
-          fbApp.on('value', function(d){
+          fbApp.once('value', function(d){
             debug('app>', app.name, d.val())
             firebaseAppRecords[appId] = d.val();
             cb(null, data);
