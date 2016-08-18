@@ -193,7 +193,16 @@ app: {
       cb(null, data.val())
     })
   },
-
+  install: function (token, deviceId, appId, policy, cb) {
+    var options = {
+      _state: 'application-install',
+      token: userToken,
+      deviceId: deviceId,
+      appId: appId,
+      policy: policy
+    };
+    firebaseQueueRef.push(options, cb);
+  },
   list: function( cb ) {
     firebaseAppListRef.on('value', function(data){
       debug('app.list>', data.val());
