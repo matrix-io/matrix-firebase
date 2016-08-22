@@ -1,5 +1,6 @@
 var firebaseDevices;
 var firebaseAppListRef;
+var firebaseAppstoreRef;
 var firebaseAppRefMap;
 var firebaseAppRecords;
 var firebaseDeviceRef;
@@ -40,6 +41,7 @@ module.exports = {
     // firebase = new F( 'https://admobilize.firebaseio.com/appconf' + path);
     firebaseDeviceRef = new F( 'https://admobilize-testing.firebaseio.com/devices/' + deviceId + '/public');
     firebaseAppListRef = new F( 'https://admobilize-testing.firebaseio.com/users/' + userId + '/devices/'+ deviceId + '/apps' );
+    firebaseAppstoreRef = new F( 'https://admobilize-testing.firebaseio.com/appstore-test/');
     firebaseUserDevicesRef = new F('https://admobilize-testing.firebaseio.com/users/' + userId + '/devices/' )
 
     firebaseQueueRef = new F('https://admobilize-testing.firebaseio.com/queue/tasks')
@@ -80,7 +82,13 @@ module.exports = {
       refreshApps();
     })
 
+    firebaseAppstoreRef.authWithCustomToken(token, function (err) {
+      if(err) {  return cb(err);    }
+      debug('Firebase successful for: appstore');
+    })
+
     userToken = token;
+    cb();
 },
 
 
@@ -193,7 +201,7 @@ app: {
       cb(null, data.val())
     })
   },
-  install: function (token, deviceId, appId, policy, cb) {
+install: function (token, deviceId, appId, policy, cb) {
     var options = {
       _state: 'application-install',
       token: userToken,
@@ -261,6 +269,7 @@ app: {
     })
   },
   getAll: getAllApps,
+  getApps: getAppsInAppstore,
   getIDForName( appName, cb){
     firebaseAppListRef.orderByChild('name').equalTo(appName).on('value', function(data){
       debug('>>>>', data.val())
@@ -334,6 +343,52 @@ function getAllApps( deviceId, token, cb ){
     }
 
   })
+}
+
+function getAppsInAppstore(deviceId, token, callback) {
+  appKeys = {};
+  var appsResult = [];
+  firebaseAppstoreRef.on('value', function (data) {
+    debug('app.getAppstore>',
+      '\nKey: \n'.yellow, data.key(),
+      '\nValue: \n'.yellow, data.val());
+    if (!_.isNull(data.val())) {
+      var appMap = data.val();
+
+      _.each(appMap, function (app, appId) {
+        debug(appId);
+        firebaseAppRecords[appId] = app;
+        
+
+        var activeVersionId = app['meta']['active'];
+        var versionDetails = app['versions'][activeVersionId]
+        debug('app>', versionDetails['meta']['name'], ' ', appId);
+        var app =
+          {
+            "_id": appId,
+            "versionId": activeVersionId,
+            "name": versionDetails['meta']['name'],
+            "shortname": versionDetails['meta']['name'],
+            "currVers": versionDetails['meta']['version'],
+            "numInstalls": 0,
+            "numUninstalls": 0,
+            "createdAt": "2015-09-28T20:38:21.768Z",
+            "updatedAt": "2015-09-29T20:38:51.590Z",
+            "currDeployUrl": "https://admatrix-apps.s3.amazonaws.com/MyHealthApp/10.1.10/"
+          };
+        firebaseAppRecords[appId] = app;
+        appsResult.push(app);
+
+      });
+
+      callback(null, appsResult);
+
+    } else {
+      console.warn('No apps available for', deviceId)
+      callback()
+    }
+
+  });
 }
 
 function checkId(id){
