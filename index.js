@@ -252,7 +252,7 @@ app: {
     })
   },
   getAll: getAllApps,
-  getIDForName( appName, cb){
+  getIDForName: function( appName, cb){
     firebaseAppListRef.orderByChild('name').equalTo(appName).on('value', function(data){
       debug( firebaseAppListRef.toString(), data.key(), '>>>>', data.val() )
       if ( _.isNull(data.val()) ){
