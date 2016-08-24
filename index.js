@@ -42,12 +42,12 @@ module.exports = {
     firebaseDeviceRef = new F( 'https://admobilize-testing.firebaseio.com/devices/' + deviceId + '/public');
     firebaseAppListRef = new F( 'https://admobilize-testing.firebaseio.com/users/' + userId + '/devices/'+ deviceId + '/apps' );
     firebaseAppstoreRef = new F( 'https://admobilize-testing.firebaseio.com/appstore-test/');
-    firebaseUserDevicesRef = new F('https://admobilize-testing.firebaseio.com/users/' + userId + '/devices/' )
+    firebaseUserDevicesRef = new F('https://admobilize-testing.firebaseio.com/users/' + userId + '/devices/')
 
     firebaseQueueRef = new F('https://admobilize-testing.firebaseio.com/queue/tasks')
 
     debug('=====firebase====='.rainbow, token, '🔥 🔮')
-
+    
     //   var config = {
     //   apiKey: "AIzaSyC44wzkGlODJoKyRGbabB8TiRJnq9k7BuA",
     //   authDomain: "admobilize-testing.firebaseapp.com",
@@ -201,13 +201,24 @@ app: {
       cb(null, data.val())
     })
   },
-install: function (token, deviceId, appId, policy, cb) {
+  install: function (token, deviceId, appId, policy, cb) {
     var options = {
       _state: 'application-install',
       token: userToken,
       deviceId: deviceId,
       appId: appId,
       policy: policy
+    };
+    firebaseQueueRef.push(options, cb);
+  },
+  deploy: function (token, deviceId, userId, appData, cb) {
+    appData['acl'] = {
+      ownerId: userId
+    };
+    var options = {
+      _state: 'application-create',
+      token: userToken,
+      app: appData
     };
     firebaseQueueRef.push(options, cb);
   },
