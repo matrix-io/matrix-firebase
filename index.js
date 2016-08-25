@@ -47,11 +47,12 @@ module.exports = {
       cb();
     }).catch(function (err) {
       if (err) {
-        console.log("Authentication error: ", err);
+        console.log('Authentication error: ', err);
       } else {
-        console.log("Failed auth with no error!!!");
+        console.log('Failed auth with no error!!!');
       }
-      cb();
+      console.log('Using token: ', token);
+      return process.exit();
     });
     
     refreshApps = function(){
@@ -224,7 +225,7 @@ app: {
   },
 
   getConfig: function( appId, cb ){
-    firebaseAppRefMap[appId].child('/config').on('value', function(data){
+    firebaseAppRefMap[appId].child('/config').once('value', function(data){
       debug('app.config>', data.val())
       cb(null, data.val())
     })
@@ -275,11 +276,11 @@ app: {
   },
   getAll: getAllApps,
   getApps: getAppsInAppstore,
-  getIDForName( appName, cb){
+  getIDForName: function( appName, cb){
     firebaseAppListRef.orderByChild('name').equalTo(appName).on('value', function(data){
-      debug('>>>>', data.val())
+      debug( firebaseAppListRef.toString(), data.key(), '>>>>', data.val() )
       if ( _.isNull(data.val()) ){
-        return cb(new Error('No firebase application by that name:' + appName))
+        return cb(new Error('No user installed firebase application:' + appName))
       }
       cb(null, _.keys(data.val())[0] );
     }, console.error)
@@ -323,28 +324,22 @@ function getAllApps( deviceId, token, cb ){
 
       var appMap = data.val();
 
-      _.each(appMap, function(app, appId){
-        debug(appId);
+      async.eachOf(appMap, function(app, appId, callback){
         var fbApp = firebaseApp.database().ref('deviceapps/' + [ deviceId, appId ].join('/') + '/public');
         firebaseAppRefMap[appId] = fbApp;
 
         fbApp.signInWithCustomToken(token).catch(function(err) {
-          if(err) {  return cb(err);    }
-          debug('Firebase successful for app:', app.name)
+          if(err) {  callback(err)   }
           fbApp.once('value', function(d){
-            debug('app>', app.name, d.val())
+            debug('[fb]dev-app>', app.name, d.val())
             firebaseAppRecords[appId] = d.val();
-            cb(null, data);
-          }, cb);
+            callback();
+          });
         });
-
-
-      })
-      // make apps collection available
+      }, cb)
 
     } else {
-      console.warn('No apps available for', deviceId )
-      cb()
+      cb('No apps available for', deviceId )
     }
 
   })
