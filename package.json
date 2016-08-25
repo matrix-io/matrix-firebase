@@ -27,7 +27,7 @@
   "dependencies": {
     "async": "^2.0.1",
     "debug": "^2.2.0",
-    "firebase": "^2.4.2",
+    "firebase": "^3.3.0",
     "jsonwebtoken": "^5.7.0",
     "lodash": "^4.11.1",
     "mockfirebase": "^0.12.0",

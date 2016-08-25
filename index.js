@@ -6,89 +6,67 @@ var firebaseAppRecords;
 var firebaseDeviceRef;
 var firebaseUserDevicesRef;
 var firebaseQueueRef;
+var refreshApps;
+var userToken;
 
 var _ = require( 'lodash' );
 var D = require('debug');
 var debug = new D('firebase')
-var F = require( 'firebase' );
-
+var F = require('firebase');
 var async = require('async');
-
-var refreshApps;
-
-var userToken;
+var uuid = require('uuid')
 
 firebaseAppRecords = {};
 firebaseAppRefMap = {};
 
-var uuid = require('uuid')
-// use child to maintain position
 module.exports = {
   init: function ( userId, deviceId, token, cb ) {
-    if ( _.isUndefined(userId)){
-      return console.error('Firebase init needs userId', userId)
-    }
+    if (_.isUndefined(userId)) return console.error('Firebase init needs userId', userId);
+    if (_.isUndefined(token)) return console.error('Firebase init needs token', token);
 
-    if ( _.isUndefined(token)){
-      return console.error('Firebase init needs token', token)
-    }
-
-    var path = '/' + userId +'/devices/'+ deviceId;
-
-    debug('Init Firebase', userId, deviceId, path )
-
-
-    // firebase = new F( 'https://admobilize.firebaseio.com/appconf' + path);
-    firebaseDeviceRef = new F( 'https://admobilize-testing.firebaseio.com/devices/' + deviceId + '/public');
-    firebaseAppListRef = new F( 'https://admobilize-testing.firebaseio.com/users/' + userId + '/devices/'+ deviceId + '/apps' );
-    firebaseAppstoreRef = new F( 'https://admobilize-testing.firebaseio.com/appstore-test/');
-    firebaseUserDevicesRef = new F('https://admobilize-testing.firebaseio.com/users/' + userId + '/devices/')
-
-    firebaseQueueRef = new F('https://admobilize-testing.firebaseio.com/queue/tasks')
-
+    debug('Init Firebase', userId, deviceId);
     debug('=====firebase====='.rainbow, token, '🔥 🔮')
-    
-    //   var config = {
-    //   apiKey: "AIzaSyC44wzkGlODJoKyRGbabB8TiRJnq9k7BuA",
-    //   authDomain: "admobilize-testing.firebaseapp.com",
-    //   databaseURL: "https://admobilize-testing.firebaseio.com",
-    //   storageBucket: "admobiliz e-testing.appspot.com",
-    // };
-    // firebase.initializeApp(config);
 
+    userToken = token;
+    var config = {
+      apiKey: "AIzaSyC44wzkGlODJoKyRGbabB8TiRJnq9k7BuA",
+      authDomain: "admobilize-testing.firebaseapp.com",
+      databaseURL: "https://admobilize-testing.firebaseio.com",
+      storageBucket: "admobilize-testing.appspot.com",
+    };
+    
+    var firebaseApp = F.initializeApp(config);
+
+    firebaseApp.auth().signInWithCustomToken(token).then(function(user) {
+      debug("Successful auth");
+      firebaseDeviceRef = firebaseApp.database().ref('devices/' + deviceId + '/public');
+      firebaseAppListRef = firebaseApp.database().ref('users/' + userId + '/devices/'+ deviceId + '/apps' );
+      firebaseAppstoreRef = firebaseApp.database().ref('appstore-test');
+      firebaseUserDevicesRef = firebaseApp.database().ref('users/' + userId + '/devices');
+      firebaseQueueRef = firebaseApp.database().ref('queue/tasks');
+      cb();
+    }).catch(function (err) {
+      if (err) {
+        console.log("Authentication error: ", err);
+      } else {
+        console.log("Failed auth with no error!!!");
+      }
+      cb();
+    });
+    
     refreshApps = function(){
       getAllApps(deviceId, token, cb);
     }
 
-    firebaseUserDevicesRef.authWithCustomToken(token, function(err) {
-      if(err) {  return cb(err);    }
-      debug('Firebase successful for: device')
-    });
-
-    firebaseQueueRef.authWithCustomToken(token, function(err){
-      if (err) return cb(err);
-      debug('Firebase successful for: worker queue')
-    })
-
-
-    firebaseDeviceRef.authWithCustomToken(token, function(err) {
-      if(err) {  return cb(err);    }
-      debug('Firebase successful for: device')
-    });
-
-    firebaseAppListRef.authWithCustomToken(token, function (err) {
-      if(err) {  return cb(err);    }
-      debug('Firebase successful for: appList');
-      refreshApps();
-    })
-
-    firebaseAppstoreRef.authWithCustomToken(token, function (err) {
-      if(err) {  return cb(err);    }
-      debug('Firebase successful for: appstore');
-    })
-
-    userToken = token;
-    cb();
+    /*F.auth().onAuthStateChanged(function(user) {
+      if (user) {
+        // User is signed in.
+        console.log("AUTH WITH: ", user);
+      } else {
+        // No user is signed in.
+        console.log("AUTH WITH No user");
+      }
+    });*/
 },
 
 
@@ -144,7 +122,23 @@ device: {
     })
   }
 },
-
+storage: {
+  upload: function (destinationPath, file, cb) {
+    //TODO this is useless until the npm firebase module includes the storage methods
+    /*var fileRef = firebaseStorage.child(destinationPath);
+    fileRef.put(file).then(function(snapshot) {
+      console.log('Uploaded a blob or file!');
+      console.log("Snapshot: ", snapshot.val());
+      cb();
+    }).catch(function (err) { 
+      console.log('Upload of ' + destinationPath + ' failed!');
+      if (err) console.log("Upload err: ", err);
+      cb(err);
+    });
+    */
+  }
+}
+,
 app: {
   appKeys : appKeys,
   add: function ( deviceId, config, policy ) {
@@ -316,13 +310,13 @@ app: {
 }
 
 function getFirebaseAppRef( deviceId, appId ){
-  return new F( 'https://admobilize-testing.firebaseio.com/deviceapps/' + [ deviceId, appId ].join('/') + '/public');
+  return firebaseApp.database().ref('deviceapps/' + [ deviceId, appId ].join('/') + '/public');
 }
 
 function getAllApps( deviceId, token, cb ){
   appKeys = {};
   firebaseAppListRef.orderByKey().on('value', function(data){
-    debug('app.getAll>', data.key(), data.val());
+    debug('app.getAll>', data.val());
     // store for use later
 
     if ( !_.isNull(data.val()) ){
@@ -331,10 +325,10 @@ function getAllApps( deviceId, token, cb ){
 
       _.each(appMap, function(app, appId){
         debug(appId);
-        var fbApp = new F( 'https://admobilize-testing.firebaseio.com/deviceapps/' + [ deviceId, appId ].join('/') + '/public');
+        var fbApp = firebaseApp.database().ref('deviceapps/' + [ deviceId, appId ].join('/') + '/public');
         firebaseAppRefMap[appId] = fbApp;
 
-        fbApp.authWithCustomToken(token, function(err, authData) {
+        fbApp.signInWithCustomToken(token).catch(function(err) {
           if(err) {  return cb(err);    }
           debug('Firebase successful for app:', app.name)
           fbApp.once('value', function(d){
@@ -360,9 +354,7 @@ function getAppsInAppstore(deviceId, token, callback) {
   appKeys = {};
   var appsResult = [];
   firebaseAppstoreRef.on('value', function (data) {
-    debug('app.getAppstore>',
-      '\nKey: \n'.yellow, data.key(),
-      '\nValue: \n'.yellow, data.val());
+    debug('app.getAppstore>', '\nValue: \n'.yellow, data.val());
     if (!_.isNull(data.val())) {
       var appMap = data.val();
 
