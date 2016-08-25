@@ -34,7 +34,7 @@ module.exports = {
       databaseURL: "https://admobilize-testing.firebaseio.com",
       storageBucket: "admobilize-testing.appspot.com",
     };
-    
+
     var firebaseApp = F.initializeApp(config);
 
     firebaseApp.auth().signInWithCustomToken(token).then(function(user) {
@@ -54,7 +54,7 @@ module.exports = {
       console.log('Using token: ', token);
       return process.exit();
     });
-    
+
     refreshApps = function(){
       getAllApps(deviceId, token, cb);
     }
@@ -131,7 +131,7 @@ storage: {
       console.log('Uploaded a blob or file!');
       console.log("Snapshot: ", snapshot.val());
       cb();
-    }).catch(function (err) { 
+    }).catch(function (err) {
       console.log('Upload of ' + destinationPath + ' failed!');
       if (err) console.log("Upload err: ", err);
       cb(err);
@@ -222,6 +222,13 @@ app: {
       debug('app.list>', data.val());
       cb(null, data.val());
     });
+  },
+
+  search: function(needle, cb){
+    firebaseAppstoreRef.orderByChild('meta/name').equalTo(needle)
+    .once('value', function(data){
+        cb(data.val());
+    })
   },
 
   getConfig: function( appId, cb ){
@@ -356,7 +363,7 @@ function getAppsInAppstore(deviceId, token, callback) {
       _.each(appMap, function (app, appId) {
         debug(appId);
         firebaseAppRecords[appId] = app;
-        
+
 
         var activeVersionId = app['meta']['active'];
         var versionDetails = app['versions'][activeVersionId]
