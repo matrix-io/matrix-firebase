@@ -227,7 +227,6 @@ app: {
   search: function(needle, cb){
     firebaseAppstoreRef.child('meta/name').equalTo(needle)
     .once('value', function(data){
-      console.log(data)
         cb(data.val());
     })
   },
