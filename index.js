@@ -1,13 +1,16 @@
-var firebaseDevices;
-var firebaseAppListRef;
+
+var firebaseUserAppsRef;
 var firebaseAppstoreRef;
 var firebaseAppRefMap;
 var firebaseAppRecords;
 var firebaseDeviceRef;
 var firebaseUserDevicesRef;
 var firebaseQueueRef;
+var firebaseDeviceAppsRef;
 var refreshApps;
 var userToken;
+
+var firebaseApp;
 
 var _ = require( 'lodash' );
 var D = require('debug');
@@ -29,21 +32,23 @@ module.exports = {
 
     userToken = token;
     var config = {
-      apiKey: "AIzaSyC44wzkGlODJoKyRGbabB8TiRJnq9k7BuA",
-      authDomain: "admobilize-testing.firebaseapp.com",
-      databaseURL: "https://admobilize-testing.firebaseio.com",
-      storageBucket: "admobilize-testing.appspot.com",
+      apiKey: 'AIzaSyC44wzkGlODJoKyRGbabB8TiRJnq9k7BuA',
+      authDomain: 'admobilize-testing.firebaseapp.com',
+      databaseURL: 'https://admobilize-testing.firebaseio.com',
+      storageBucket: 'admobilize-testing.appspot.com',
     };
 
-    var firebaseApp = F.initializeApp(config);
+    firebaseApp = F.initializeApp(config);
 
     firebaseApp.auth().signInWithCustomToken(token).then(function(user) {
-      debug("Successful auth");
+      debug('Successful auth', user, token);
       firebaseDeviceRef = firebaseApp.database().ref('devices/' + deviceId + '/public');
-      firebaseAppListRef = firebaseApp.database().ref('users/' + userId + '/devices/'+ deviceId + '/apps' );
+      firebaseUserAppsRef = firebaseApp.database().ref('users/' + userId + '/devices/'+ deviceId + '/apps' );
       firebaseAppstoreRef = firebaseApp.database().ref('appstore');
       firebaseUserDevicesRef = firebaseApp.database().ref('users/' + userId + '/devices');
       firebaseQueueRef = firebaseApp.database().ref('queue/tasks');
+      firebaseDeviceAppsRef = firebaseApp.database().ref('deviceapps/' + deviceId );
+      getAllApps( deviceId, cb );
       cb();
     }).catch(function (err) {
       if (err) {
@@ -55,17 +60,14 @@ module.exports = {
       return process.exit();
     });
 
-    refreshApps = function(){
-      getAllApps(deviceId, token, cb);
-    }
 
     /*F.auth().onAuthStateChanged(function(user) {
       if (user) {
         // User is signed in.
-        console.log("AUTH WITH: ", user);
+        console.log('AUTH WITH: ', user);
       } else {
         // No user is signed in.
-        console.log("AUTH WITH No user");
+        console.log('AUTH WITH No user');
       }
     });*/
 },
@@ -75,14 +77,14 @@ device: {
   //based on matrix-data-objects / docs / deviceregistration.md
   // send to `queue/tasks`
   /*{
-  "_state": "register-device",
-  "token": "user-token-here",
-  "device": {
-    "meta": {
-      "type": "matrix",
-      "osVersion": "some-raspian-version",
-      "version": "some-mos-version",
-      "hardwareId": "some-hw-identifier"
+  '_state': 'register-device',
+  'token': 'user-token-here',
+  'device': {
+    'meta': {
+      'type': 'matrix',
+      'osVersion': 'some-raspian-version',
+      'version': 'some-mos-version',
+      'hardwareId': 'some-hw-identifier'
       name and description optional
     }
   }
@@ -105,7 +107,7 @@ device: {
     firebaseDeviceRef.on( 'value', function ( s ) {
       if ( !_.isNull( s.val() ) ) cb( null, s.val() )
     }, function ( e ) {
-      if ( !_.isNull( s.val() ) ) cb( e )
+       cb( e )
     } )
   },
   getConfig: function ( cb ) {
@@ -124,19 +126,7 @@ device: {
   }
 },
 storage: {
-  upload: function (destinationPath, file, cb) {
-    //TODO this is useless until the npm firebase module includes the storage methods
-    /*var fileRef = firebaseStorage.child(destinationPath);
-    fileRef.put(file).then(function(snapshot) {
-      console.log('Uploaded a blob or file!');
-      console.log("Snapshot: ", snapshot.val());
-      cb();
-    }).catch(function (err) {
-      console.log('Upload of ' + destinationPath + ' failed!');
-      if (err) console.log("Upload err: ", err);
-      cb(err);
-    });
-    */
+  upload: function () {
   }
 }
 ,
@@ -154,7 +144,7 @@ app: {
       function setAppList(cb){
         var o = {};
         o[newAppId] = { name: appName };
-        firebaseAppListRef.set(o, cb);
+        firebaseUserAppsRef.set(o, cb);
       },
       function setAppConfig(cb){
         // deviceapps
@@ -205,10 +195,19 @@ app: {
       versionId: versionId,
       policy: policy
     };
-    firebaseQueueRef.push(options, cb);
+    var key = firebaseQueueRef.push().key;
+
+    // update deviceapps/
+    var update = {};
+    update[key] = options;
+
+    firebaseQueueRef.update(update);
+
+    // rest of firebase update is handled by worker
+    cb();
   },
   deploy: function (token, deviceId, userId, appData, cb) {
-    appData['acl'] = {
+    appData.acl = {
       ownerId: userId
     };
     var options = {
@@ -219,7 +218,7 @@ app: {
     firebaseQueueRef.push(options, cb);
   },
   list: function( cb ) {
-    firebaseAppListRef.on('value', function(data){
+    firebaseUserAppsRef.on('value', function(data){
       debug('app.list>', data.val());
       cb(null, data.val());
     });
@@ -282,11 +281,25 @@ app: {
       cb(data.val())
     })
   },
+  watchDeviceApps: function(cb){
+    console.log('deviceapps!')
+    firebaseDeviceAppsRef.on('child_added', function(data){
+      console.log('add', data.val())
+      cb(data.val())
+    })
+  },
+  watchDeviceAppChanges: function(cb){
+    console.log('changes!')
+    firebaseDeviceAppsRef.on('child_changed', function(data){
+      console.log('change', data.val())
+      cb(data.val())
+    })
+  },
   getAll: getAllApps,
   getApps: getAppsInAppstore,
   getIDForName: function( appName, cb){
-    firebaseAppListRef.orderByChild('name').equalTo(appName).on('value', function(data){
-      debug( firebaseAppListRef.toString(), data.key(), '>>>>', data.val() )
+    firebaseUserAppsRef.orderByChild('name').equalTo(appName).on('value', function(data){
+      debug( firebaseUserAppsRef.toString(), data.key(), '>>>>', data.val() )
       if ( _.isNull(data.val()) ){
         return cb(new Error('No user installed firebase application:' + appName))
       }
@@ -322,9 +335,9 @@ function getFirebaseAppRef( deviceId, appId ){
   return firebaseApp.database().ref('deviceapps/' + [ deviceId, appId ].join('/') + '/public');
 }
 
-function getAllApps( deviceId, token, cb ){
+function getAllApps( deviceId, cb ){
   appKeys = {};
-  firebaseAppListRef.orderByKey().on('value', function(data){
+  firebaseUserAppsRef.orderByKey().once('value', function(data){
     debug('app.getAll>', data.val());
     // store for use later
 
@@ -336,14 +349,12 @@ function getAllApps( deviceId, token, cb ){
         var fbApp = firebaseApp.database().ref('deviceapps/' + [ deviceId, appId ].join('/') + '/public');
         firebaseAppRefMap[appId] = fbApp;
 
-        fbApp.signInWithCustomToken(token).catch(function(err) {
-          if(err) {  callback(err)   }
+
           fbApp.once('value', function(d){
             debug('[fb]dev-app>', app.name, d.val())
             firebaseAppRecords[appId] = d.val();
             callback();
           });
-        });
       }, cb)
 
     } else {
@@ -371,16 +382,16 @@ function getAppsInAppstore(deviceId, token, callback) {
         debug('app>', versionDetails['meta']['name'], ' ', appId);
         var app =
           {
-            "_id": appId,
-            "versionId": activeVersionId,
-            "name": versionDetails['meta']['name'],
-            "shortname": versionDetails['meta']['name'],
-            "currVers": versionDetails['meta']['version'],
-            "numInstalls": 0,
-            "numUninstalls": 0,
-            "createdAt": "2015-09-28T20:38:21.768Z",
-            "updatedAt": "2015-09-29T20:38:51.590Z",
-            "currDeployUrl": "https://admatrix-apps.s3.amazonaws.com/MyHealthApp/10.1.10/"
+            '_id': appId,
+            'versionId': activeVersionId,
+            'name': versionDetails['meta']['name'],
+            'shortname': versionDetails['meta']['name'],
+            'currVers': versionDetails['meta']['version'],
+            'numInstalls': 0,
+            'numUninstalls': 0,
+            'createdAt': '2015-09-28T20:38:21.768Z',
+            'updatedAt': '2015-09-29T20:38:51.590Z',
+            'currDeployUrl': 'https://admatrix-apps.s3.amazonaws.com/MyHealthApp/10.1.10/'
           };
         firebaseAppRecords[appId] = app;
         appsResult.push(app);
