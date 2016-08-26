@@ -307,7 +307,7 @@ app: {
   getApps: getAppsInAppstore,
   getIDForName: function( appName, cb){
     firebaseUserAppsRef.orderByChild('name').equalTo(appName).on('value', function(data){
-      debug( firebaseUserAppsRef.toString(), data.key(), '>>>>', data.val() )
+      debug( firebaseUserAppsRef.toString(), data.key, '>>>>', data.val() )
       if ( _.isNull(data.val()) ){
         return cb(new Error('No user installed firebase application:' + appName))
       }
