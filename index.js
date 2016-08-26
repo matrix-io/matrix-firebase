@@ -41,7 +41,7 @@ module.exports = {
       debug("Successful auth");
       firebaseDeviceRef = firebaseApp.database().ref('devices/' + deviceId + '/public');
       firebaseAppListRef = firebaseApp.database().ref('users/' + userId + '/devices/'+ deviceId + '/apps' );
-      firebaseAppstoreRef = firebaseApp.database().ref('appstore-test');
+      firebaseAppstoreRef = firebaseApp.database().ref('appstore');
       firebaseUserDevicesRef = firebaseApp.database().ref('users/' + userId + '/devices');
       firebaseQueueRef = firebaseApp.database().ref('queue/tasks');
       cb();
@@ -225,9 +225,8 @@ app: {
   },
 
   search: function(needle, cb){
-    firebaseAppstoreRef.child('meta/name').equalTo(needle)
-    .once('value', function(data){
-      console.log(data)
+    firebaseAppstoreRef.orderByChild('meta/name').startAt(needle)
+    .on('value', function(data){
         cb(data.val());
     })
   },
