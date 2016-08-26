@@ -47,9 +47,9 @@ module.exports = {
       firebaseAppstoreRef = firebaseApp.database().ref('appstore');
       firebaseUserDevicesRef = firebaseApp.database().ref('users/' + userId + '/devices');
       firebaseQueueRef = firebaseApp.database().ref('queue/tasks');
-      firebaseDeviceAppsRef = firebaseApp.database().ref('deviceapps/' + deviceId );
+      firebaseDeviceAppsRef = firebaseApp.database().ref('deviceapps/'+deviceId );
       getAllApps( deviceId, cb );
-      cb();
+
     }).catch(function (err) {
       if (err) {
         console.log('Authentication error: ', err);
@@ -128,8 +128,16 @@ device: {
 storage: {
   upload: function () {
   }
-}
-,
+},
+appstore: {
+  get: function(appId, cb){
+    firebaseAppstoreRef.child(appId).on('value', function (data) {
+      if ( !_.isNull(data.val())){
+        cb(data.val())
+      }
+    })
+  }
+},
 app: {
   appKeys : appKeys,
   add: function ( deviceId, config, policy ) {
@@ -281,18 +289,18 @@ app: {
       cb(data.val())
     })
   },
-  watchDeviceApps: function(cb){
-    console.log('deviceapps!')
-    firebaseDeviceAppsRef.on('child_added', function(data){
-      console.log('add', data.val())
-      cb(data.val())
+  watchUserApps: function(cb){
+    firebaseUserAppsRef.on('child_added', function(data){
+      if (!_.isNull(data.val())){
+        cb(data.key);
+      }
     })
   },
-  watchDeviceAppChanges: function(cb){
-    console.log('changes!')
-    firebaseDeviceAppsRef.on('child_changed', function(data){
-      console.log('change', data.val())
-      cb(data.val())
+  getUserAppIds: function(cb){
+    firebaseUserAppsRef.once('value', function(data){
+      if (!_.isNull(data.val())){
+        cb(data.val());
+      }
     })
   },
   getAll: getAllApps,
@@ -317,16 +325,6 @@ app: {
       firebaseAppList.child(appId).remove();
       delete firebaseAppList[appId];
     }
-  },
-  onInstall: function( cb ){
-    firebaseAppList.on('child_added', function(n){
-      cb();
-    });
-  },
-  onChange: function(appId, cb ){
-    firebaseAppRefMap[appId].on('child_changed', function(n){
-      cb();
-    });
   }
 }
 }
@@ -345,17 +343,25 @@ function getAllApps( deviceId, cb ){
 
       var appMap = data.val();
 
-      async.eachOf(appMap, function(app, appId, callback){
+      _.each(appMap, function(meta, appId){
+        // console.log('>>>>'.rainbow, appId, meta)
         var fbApp = firebaseApp.database().ref('deviceapps/' + [ deviceId, appId ].join('/') + '/public');
         firebaseAppRefMap[appId] = fbApp;
+        fbApp.once('value', function(d){
+          if ( !_.isNull( d.val() )){
 
+          debug('[fb]dev-app>', meta.name, d.val())
+          if ( meta.name === d.val().meta.name ) {
+            // console.log(meta.name, 'checks out')
+          } else {
+            console.warn(meta.name, 'is not in `deviceapps`'.yellow )
+          }
+          firebaseAppRecords[appId] = d.val();
+        }
+        });
+      })
 
-          fbApp.once('value', function(d){
-            debug('[fb]dev-app>', app.name, d.val())
-            firebaseAppRecords[appId] = d.val();
-            callback();
-          });
-      }, cb)
+      cb();
 
     } else {
       cb('No apps available for', deviceId )
