@@ -196,12 +196,13 @@ app: {
       cb(null, data.val())
     })
   },
-  install: function (token, deviceId, appId, policy, cb) {
+  install: function (token, deviceId, appId, versionId, policy, cb) {
     var options = {
       _state: 'application-install',
       token: userToken,
       deviceId: deviceId,
       appId: appId,
+      versionId: versionId,
       policy: policy
     };
     firebaseQueueRef.push(options, cb);
@@ -226,7 +227,7 @@ app: {
 
   search: function(needle, cb){
     firebaseAppstoreRef.orderByChild('meta/name').startAt(needle)
-    .on('value', function(data){
+    .once('value', function(data){
         cb(data.val());
     })
   },
