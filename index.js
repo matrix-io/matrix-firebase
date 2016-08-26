@@ -377,21 +377,25 @@ function getAppsInAppstore(deviceId, token, callback) {
         firebaseAppRecords[appId] = app;
 
 
-        var activeVersionId = app['meta']['active'];
+        var activeVersionId = app['meta']['currentVersion'];
         var versionDetails = app['versions'][activeVersionId]
-        debug('app>', versionDetails['meta']['name'], ' ', appId);
+        debug('app>', app['meta']['name'], ' ', appId);
+        var createdAt = app['meta']['createdAt'] ? app['meta']['createdAt'] : "2015-09-28T20:38:21.768Z";
+        var updatedAt = versionDetails['createdAt'] ? versionDetails['createdAt'] : "2015-09-28T20:38:21.768Z";
         var app =
           {
-            '_id': appId,
-            'versionId': activeVersionId,
-            'name': versionDetails['meta']['name'],
-            'shortname': versionDetails['meta']['name'],
-            'currVers': versionDetails['meta']['version'],
-            'numInstalls': 0,
-            'numUninstalls': 0,
-            'createdAt': '2015-09-28T20:38:21.768Z',
-            'updatedAt': '2015-09-29T20:38:51.590Z',
-            'currDeployUrl': 'https://admatrix-apps.s3.amazonaws.com/MyHealthApp/10.1.10/'
+
+            "_id": appId,
+            "versionId": activeVersionId,
+            "name": app['meta']['name'],
+            "description": app['meta']['description'],
+            "shortname": app['meta']['name'], //TODO use or generate real shortname
+            "version": versionDetails['version'],
+            "numInstalls": 0,
+            "numUninstalls": 0,
+            "createdAt": createdAt,
+            "updatedAt": updatedAt, //TODO Is this right?
+            "file": versionDetails['file']
           };
         firebaseAppRecords[appId] = app;
         appsResult.push(app);
