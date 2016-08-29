@@ -364,7 +364,8 @@ function getAllApps( deviceId, cb ){
       cb();
 
     } else {
-      cb('No apps available for', deviceId )
+      // no apps found
+      cb(null, deviceId )
     }
 
   })
