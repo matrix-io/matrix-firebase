@@ -51,11 +51,19 @@ module.exports = {
 
     }).catch(function (err) {
       if (err) {
-        console.log('Authentication error: ', err);
+        if(err.hasOwnProperty('code')){
+          if(err.code == 'auth/invalid-custom-token'){
+            console.log("Token expired, please login");
+          } else {
+            console.log('Authentication error (' + err.code + '): ', err.message);
+          }
+        } else {
+          console.log('Authentication error: ', err);
+        }        
       } else {
         console.log('Failed auth with no error!!!');
       }
-      console.log('Using token: ', token);
+      debug('Using token: ', token);
       return process.exit();
     });
 
