@@ -24,10 +24,9 @@ firebaseAppRefMap = {};
 
 module.exports = {
   init: function ( userId, deviceId, token, cb ) {
-    if (_.isUndefined(userId)) return console.error('Firebase init needs userId', userId);
     if (_.isUndefined(token)) return console.error('Firebase init needs token', token);
 
-    debug('Init Firebase', userId, deviceId);
+    debug('Init Firebase');
     debug('=====firebase====='.rainbow, token, '🔥 🔮')
 
     userToken = token;
@@ -41,7 +40,7 @@ module.exports = {
     firebaseApp = F.initializeApp(config);
 
     firebaseApp.auth().signInWithCustomToken(token).then(function(user) {
-      debug('Successful auth', user, token);
+      debug('Firebase Auth Success');
       firebaseDeviceRef = firebaseApp.database().ref('devices/' + deviceId + '/public');
       firebaseUserAppsRef = firebaseApp.database().ref('users/' + userId + '/devices/'+ deviceId + '/apps' );
       firebaseAppstoreRef = firebaseApp.database().ref('appstore');
@@ -336,7 +335,7 @@ function getFirebaseAppRef( deviceId, appId ){
 function getAllApps( deviceId, cb ){
   appKeys = {};
   firebaseUserAppsRef.orderByKey().once('value', function(data){
-    debug('app.getAll>', data.val());
+    // debug('app.getAll>', data.val());
     // store for use later
 
     if ( !_.isNull(data.val()) ){
@@ -350,7 +349,7 @@ function getAllApps( deviceId, cb ){
         fbApp.once('value', function(d){
           if ( !_.isNull( d.val() )){
 
-          debug('[fb]dev-app>', meta.name, d.val())
+          debug('[fb]installed-app>', meta.name )
           if ( meta.name === d.val().meta.name ) {
             // console.log(meta.name, 'checks out')
           } else {
