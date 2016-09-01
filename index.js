@@ -23,10 +23,19 @@ firebaseAppRecords = {};
 firebaseAppRefMap = {};
 
 module.exports = {
-  init: function ( userId, deviceId, token, cb ) {
-    if (_.isUndefined(token)) return console.error('Firebase init needs token', token);
-
+  init: function (userId, deviceId, token, cb) {
     debug('Init Firebase');
+    var error;
+    if (_.isUndefined(userId)) {
+      error = new Error('Firebase init needs a userId');
+      error.code = 'auth/no-user-id-provided';
+    }
+    if (_.isUndefined(token)) {
+      error = new Error('Firebase init needs a token');
+      error.code = 'auth/no-custom-token-provided';
+    }
+    if (error) return callback(error);
+    
     debug('=====firebase====='.rainbow, token, '🔥 🔮')
 
     userToken = token;
@@ -50,33 +59,9 @@ module.exports = {
       getAllApps( deviceId, cb );
 
     }).catch(function (err) {
-      if (err) {
-        if(err.hasOwnProperty('code')){
-          if(err.code == 'auth/invalid-custom-token'){
-            console.log("Token expired, please login");
-          } else {
-            console.log('Authentication error (' + err.code + '): ', err.message);
-          }
-        } else {
-          console.log('Authentication error: ', err);
-        }        
-      } else {
-        console.log('Failed auth with no error!!!');
-      }
       debug('Using token: ', token);
-      return process.exit();
+      return cb(err);
     });
-
-
-    /*F.auth().onAuthStateChanged(function(user) {
-      if (user) {
-        // User is signed in.
-        console.log('AUTH WITH: ', user);
-      } else {
-        // No user is signed in.
-        console.log('AUTH WITH No user');
-      }
-    });*/
 },
 
 
