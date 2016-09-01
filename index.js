@@ -34,7 +34,7 @@ module.exports = {
       error = new Error('Firebase init needs a token');
       error.code = 'auth/no-custom-token-provided';
     }
-    if (error) return callback(error);
+    if (error) return cb(error);
     
     debug('=====firebase====='.rainbow, token, '🔥 🔮')
 
