@@ -1,4 +1,3 @@
-
 var firebaseUserAppsRef;
 var firebaseAppstoreRef;
 var firebaseAppRefMap;
@@ -21,6 +20,69 @@ var uuid = require('uuid')
 
 firebaseAppRecords = {};
 firebaseAppRefMap = {};
+
+//Worker tasks specs
+var specs = {
+  device_register: {
+    error_state: "error",
+    finished_state: "device-register-completed",
+    in_progress_state: "device-register-in-progress",
+    retries: 3,
+    start_state: "device-register",
+    timeout: 10000
+  },
+  application_install: {
+    error_state: "error",
+    in_progress_state: "application-install-in-progress",
+    retries: 3,
+    start_state: "application-install",
+    timeout: 10000
+  },
+  application_create: {
+    error_state: "error",
+    in_progress_state: "application-create-in-progress",
+    retries: 3,
+    start_state: "application-create",
+    timeout: 10000
+  }
+};
+
+var processTask = function (spec, options, error, finished, start, progress) {
+  if (_.isUndefined(error)) error = function () { }
+  if (_.isUndefined(finished)) finished = function () { }
+  if (_.isUndefined(start)) start = function () { }
+  if (_.isUndefined(progress)) progress = function () { }
+  
+  var key = firebaseQueueRef.push().key;
+  var update = {};
+  update[key] = options;
+  firebaseQueueRef.update(update);
+  var timeoutTimer = setTimeout(function () {
+    return error(new Error('Timeout processing worker task ' + key));
+  }, spec.timeout + (spec.timeout * spec.retries));
+  firebaseQueueRef.child(key).on('value', function (dataSnapshot) {
+    var task = dataSnapshot.val();
+
+    if (_.isNull(task) || _.isUndefined(task) || (spec.hasOwnProperty('finished_state') && task._state == spec.finished_state)) {
+      return finished();
+    } else { 
+      switch (task._state) {
+        case spec.start_state:
+          start();
+          break;
+        case spec.in_progress_state:
+          progress();
+          break;
+        case spec.error_state:
+          clearTimeout(timeoutTimer);
+          return error(new Error('Unable to register device'));
+        default:
+          clearTimeout(timeoutTimer);
+          return error(new Error('Unable to request device registration'));
+      }
+    }
+  });
+}
 
 module.exports = {
   init: function (userId, deviceId, token, cb) {
@@ -66,34 +128,29 @@ module.exports = {
 
 
 device: {
-  //based on matrix-data-objects / docs / deviceregistration.md
-  // send to `queue/tasks`
-  /*{
-  '_state': 'register-device',
-  'token': 'user-token-here',
-  'device': {
-    'meta': {
-      'type': 'matrix',
-      'osVersion': 'some-raspian-version',
-      'version': 'some-mos-version',
-      'hardwareId': 'some-hw-identifier'
-      name and description optional
-    }
-  }
-  }
-  */
-  add: function( options, cb ){
+  //TODO This should receive parameters and not just an object
+  add: function (options, cb) {
     var o = {
-      _state: 'register-device',
+      _state: specs.device_register.start_state,
       token: userToken,
       device: { meta: {} }
     };
+    _.extend(o.device.meta, options);
+    options = o;
 
-    // add
-    _.extend(o.device.meta, options)
+    processTask(specs.device_register, options,
+      function (err) {
+        console.log('Error registering device: ', err);
+        process.exit();
+      }, function () {
+        console.log('Device registered succesfuly');
+        process.exit();
+      }, function () {
+        console.log('Device registration request formed...');
+      }, function () {
+        console.log('Registering device...');
+      });
 
-    debug('[FB] + device', o);
-    firebaseQueueRef.push(o, cb);
   },
   get: function ( cb ) {
     firebaseDeviceRef.on( 'value', function ( s ) {
@@ -186,37 +243,52 @@ app: {
       cb(null, data.val())
     })
   },
-  install: function (token, deviceId, appId, versionId, policy, cb) {
+  install: function (token, deviceId, appId, versionId, policy, cb) { 
     var options = {
-      _state: 'application-install',
+      _state: specs.application_install.start_state,
       token: userToken,
       deviceId: deviceId,
       appId: appId,
       versionId: versionId,
       policy: policy
     };
-    var key = firebaseQueueRef.push().key;
 
-    // update deviceapps/
-    var update = {};
-    update[key] = options;
-
-    firebaseQueueRef.update(update);
-
-    // rest of firebase update is handled by worker
-    cb();
-  },
+    processTask(specs.application_install, options,
+      function (err) {
+        console.log('App installation request: ', err);
+        process.exit();
+      }, function () {
+        console.log('App installation request generated succesfuly');
+        process.exit();
+      }, function () {
+        console.log('App installation request generated...');
+      }, function () {
+        console.log('Processing app installation request...');
+      });
+  }, //install ends
   deploy: function (token, deviceId, userId, appData, cb) {
     appData.acl = {
       ownerId: userId
     };
     var options = {
-      _state: 'application-create',
+      _state: specs.application_create.start_state,
       token: userToken,
       app: appData
     };
-    firebaseQueueRef.push(options, cb);
-  },
+    processTask(specs.application_create, options,
+      function (err) { //error
+        console.log('App registration failed: ', err);
+        process.exit();
+      }, function () { //finished
+        console.log('App deployment finished succesfuly!');
+        process.exit();
+      }, function () { //start
+        console.log('App registration formed...');
+      }, function () { //progress
+        console.log('App registration in progress...');
+      }
+    );
+  }, //deploy ends
   list: function( cb ) {
     firebaseUserAppsRef.on('value', function(data){
       debug('app.list>', data.val());
