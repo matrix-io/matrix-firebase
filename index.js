@@ -47,11 +47,21 @@ var specs = {
   }
 };
 
-var processTask = function (spec, options, error, finished, start, progress) {
-  if (_.isUndefined(error)) error = function () { }
-  if (_.isUndefined(finished)) finished = function () { }
-  if (_.isUndefined(start)) start = function () { }
-  if (_.isUndefined(progress)) progress = function () { }
+/**
+ *@method processTask
+ *@parameter {Object} spec Json object that follows Firebase worker specs format
+ *@parameter {Object} options Json object sent to the worker task
+ *@parameter {Object} events Json object with function exectued for each respective worker state (start, progress, finished, error) 
+ *@description Copy a file from a specific path to another.
+ */
+var processTask = function (spec, options, events) {
+  debug('Processing a task with ', spec);
+  debug('OPTIONS: ', JSON.stringify(options));
+  //These events are optional
+  var error = !_.has(events, 'error') ? function (err) { } : events.error; //Called when the task finishes in an error state, includes the error (Timeout included)
+  var finished = !_.has(events, 'finished') ? function () { } : events.finished; //Called whenever the tasks reaches its final state
+  var start = !_.has(events, 'start') ? function () { } : events.start; //Called whenever the task is on its initial state (can happen more than once if spec.retries > 0)
+  var progress = !_.has(events, 'progress') ? function () { } : events.progress; //Called whenever the task state changes to progress (can happen more than once if spec.retries > 0)
   
   var key = firebaseQueueRef.push().key;
   var update = {};
@@ -75,10 +85,14 @@ var processTask = function (spec, options, error, finished, start, progress) {
           break;
         case spec.error_state:
           clearTimeout(timeoutTimer);
-          return error(new Error('Unable to register device'));
+          var generatedError = new Error('Error processing task ' + key);
+          if (task.hasOwnProperty('_error_details')) generatedError.details = task._error_details; 
+          return error(generatedError);
         default:
           clearTimeout(timeoutTimer);
-          return error(new Error('Unable to request device registration'));
+          var generatedError = new Error('Unable to create task ' + key);
+          if (task.hasOwnProperty('_error_details')) generatedError.details = task._error_details;
+          return error(generatedError);
       }
     }
   });
@@ -124,12 +138,10 @@ module.exports = {
       debug('Using token: ', token);
       return cb(err);
     });
-},
-
-
+  },
+  
 device: {
-  //TODO This should receive parameters and not just an object
-  add: function (options, cb) {
+  add: function (options, events) {
     var o = {
       _state: specs.device_register.start_state,
       token: userToken,
@@ -138,18 +150,7 @@ device: {
     _.extend(o.device.meta, options);
     options = o;
 
-    processTask(specs.device_register, options,
-      function (err) {
-        console.log('Error registering device: ', err);
-        process.exit();
-      }, function () {
-        console.log('Device registered succesfuly');
-        process.exit();
-      }, function () {
-        console.log('Device registration request formed...');
-      }, function () {
-        console.log('Registering device...');
-      });
+    processTask(specs.device_register, options, events);
 
   },
   get: function ( cb ) {
@@ -243,7 +244,7 @@ app: {
       cb(null, data.val())
     })
   },
-  install: function (token, deviceId, appId, versionId, policy, cb) { 
+  install: function (token, deviceId, appId, versionId, policy, events) { 
     var options = {
       _state: specs.application_install.start_state,
       token: userToken,
@@ -252,21 +253,11 @@ app: {
       versionId: versionId,
       policy: policy
     };
+    
+    processTask(specs.application_install, options, events);
 
-    processTask(specs.application_install, options,
-      function (err) {
-        console.log('App installation request: ', err);
-        process.exit();
-      }, function () {
-        console.log('App installation request generated succesfuly');
-        process.exit();
-      }, function () {
-        console.log('App installation request generated...');
-      }, function () {
-        console.log('Processing app installation request...');
-      });
   }, //install ends
-  deploy: function (token, deviceId, userId, appData, cb) {
+  deploy: function (token, deviceId, userId, appData, events) {
     appData.acl = {
       ownerId: userId
     };
@@ -275,19 +266,9 @@ app: {
       token: userToken,
       app: appData
     };
-    processTask(specs.application_create, options,
-      function (err) { //error
-        console.log('App registration failed: ', err);
-        process.exit();
-      }, function () { //finished
-        console.log('App deployment finished succesfuly!');
-        process.exit();
-      }, function () { //start
-        console.log('App registration formed...');
-      }, function () { //progress
-        console.log('App registration in progress...');
-      }
-    );
+
+    processTask(specs.application_create, options, events);
+
   }, //deploy ends
   list: function( cb ) {
     firebaseUserAppsRef.on('value', function(data){
