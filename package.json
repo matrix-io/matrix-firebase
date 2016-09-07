@@ -1,6 +1,6 @@
 {
   "name": "matrix-firebase",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Use Firebase with Matrix systems",
   "main": "index.js",
   "directories": {
