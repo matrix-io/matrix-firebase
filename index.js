@@ -1,4 +1,3 @@
-
 var firebaseUserAppsRef;
 var firebaseAppstoreRef;
 var firebaseAppRefMap;
@@ -21,6 +20,83 @@ var uuid = require('uuid')
 
 firebaseAppRecords = {};
 firebaseAppRefMap = {};
+
+//Worker tasks specs
+var specs = {
+  device_register: {
+    error_state: "error",
+    finished_state: "device-register-completed",
+    in_progress_state: "device-register-in-progress",
+    retries: 3,
+    start_state: "device-register",
+    timeout: 10000
+  },
+  application_install: {
+    error_state: "error",
+    in_progress_state: "application-install-in-progress",
+    retries: 3,
+    start_state: "application-install",
+    timeout: 10000
+  },
+  application_create: {
+    error_state: "error",
+    in_progress_state: "application-create-in-progress",
+    retries: 3,
+    start_state: "application-create",
+    timeout: 10000
+  }
+};
+
+/**
+ *@method processTask
+ *@parameter {Object} spec Json object that follows Firebase worker specs format
+ *@parameter {Object} options Json object sent to the worker task
+ *@parameter {Object} events Json object with function exectued for each respective worker state (start, progress, finished, error) 
+ *@description Copy a file from a specific path to another.
+ */
+var processTask = function (spec, options, events) {
+  debug('Processing a task with ', spec);
+  debug('OPTIONS: ', JSON.stringify(options));
+  //These events are optional
+  var error = !_.has(events, 'error') ? function (err) { } : events.error; //Called when the task finishes in an error state, includes the error (Timeout included)
+  var finished = !_.has(events, 'finished') ? function () { } : events.finished; //Called whenever the tasks reaches its final state
+  var start = !_.has(events, 'start') ? function () { } : events.start; //Called whenever the task is on its initial state (can happen more than once if spec.retries > 0)
+  var progress = !_.has(events, 'progress') ? function () { } : events.progress; //Called whenever the task state changes to progress (can happen more than once if spec.retries > 0)
+  
+  var key = firebaseQueueRef.push().key;
+  var update = {};
+  update[key] = options;
+  firebaseQueueRef.update(update);
+  var timeoutTimer = setTimeout(function () {
+    return error(new Error('Timeout processing worker task ' + key));
+  }, spec.timeout + (spec.timeout * spec.retries));
+  firebaseQueueRef.child(key).on('value', function (dataSnapshot) {
+    var task = dataSnapshot.val();
+
+    if (_.isNull(task) || _.isUndefined(task) || (spec.hasOwnProperty('finished_state') && task._state == spec.finished_state)) {
+      return finished();
+    } else { 
+      switch (task._state) {
+        case spec.start_state:
+          start();
+          break;
+        case spec.in_progress_state:
+          progress();
+          break;
+        case spec.error_state:
+          clearTimeout(timeoutTimer);
+          var generatedError = new Error('Error processing task ' + key);
+          if (task.hasOwnProperty('_error_details')) generatedError.details = task._error_details; 
+          return error(generatedError);
+        default:
+          clearTimeout(timeoutTimer);
+          var generatedError = new Error('Unable to create task ' + key);
+          if (task.hasOwnProperty('_error_details')) generatedError.details = task._error_details;
+          return error(generatedError);
+      }
+    }
+  });
+}
 
 module.exports = {
   init: function (userId, deviceId, token, cb) {
@@ -62,7 +138,7 @@ module.exports = {
       debug('Using token: ', token);
       return cb(err);
     });
-},
+  },  
 
 install: {
   watch: function(appId, cb){
@@ -88,36 +164,18 @@ user:{
   }
 },
 
-
 device: {
-  //based on matrix-data-objects / docs / deviceregistration.md
-  // send to `queue/tasks`
-  /*{
-  '_state': 'register-device',
-  'token': 'user-token-here',
-  'device': {
-    'meta': {
-      'type': 'matrix',
-      'osVersion': 'some-raspian-version',
-      'version': 'some-mos-version',
-      'hardwareId': 'some-hw-identifier'
-      name and description optional
-    }
-  }
-  }
-  */
-  add: function( options, cb ){
+  add: function (options, events) {
     var o = {
-      _state: 'register-device',
+      _state: specs.device_register.start_state,
       token: userToken,
       device: { meta: {} }
     };
+    _.extend(o.device.meta, options);
+    options = o;
 
-    // add
-    _.extend(o.device.meta, options)
+    processTask(specs.device_register, options, events);
 
-    debug('[FB] + device', o);
-    firebaseQueueRef.push(o, cb);
   },
   get: function ( cb ) {
     firebaseDeviceRef.on( 'value', function ( s ) {
@@ -220,37 +278,32 @@ app: {
       cb(null, data.val())
     })
   },
-  install: function (token, deviceId, appId, versionId, policy, cb) {
+  install: function (token, deviceId, appId, versionId, policy, events) { 
     var options = {
-      _state: 'application-install',
+      _state: specs.application_install.start_state,
       token: userToken,
       deviceId: deviceId,
       appId: appId,
       versionId: versionId,
       policy: policy
     };
-    var key = firebaseQueueRef.push().key;
+    
+    processTask(specs.application_install, options, events);
 
-    // update deviceapps/
-    var update = {};
-    update[key] = options;
-
-    firebaseQueueRef.update(update);
-
-    // rest of firebase update is handled by worker
-    cb();
-  },
-  deploy: function (token, deviceId, userId, appData, cb) {
+  }, //install ends
+  deploy: function (token, deviceId, userId, appData, events) {
     appData.acl = {
       ownerId: userId
     };
     var options = {
-      _state: 'application-create',
+      _state: specs.application_create.start_state,
       token: userToken,
       app: appData
     };
-    firebaseQueueRef.push(options, cb);
-  },
+
+    processTask(specs.application_create, options, events);
+
+  }, //deploy ends
   list: function( cb ) {
     firebaseUserAppsRef.on('value', function(data){
       debug('app.list>', data.val());
