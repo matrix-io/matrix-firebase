@@ -82,7 +82,7 @@ install: {
 
 user:{
   getAllApps: function(cb){
-    firebaseUserDevicesRef.once('value', function(data){
+    firebaseUserDevicesRef.on('value', function(data){
       cb(data.val());
     })
   }
@@ -146,7 +146,11 @@ device: {
     })
   },
   lookup: function( deviceId, cb ){
-    firebaseApp.database().ref('devices/' + deviceId + '/public').once('value', function () {
+    //  TODO: this requires the device to exist, otherwise bugs out, catch error condition
+    firebaseApp.database().ref('devices/' + deviceId + '/public').on('value', function (resp) {
+      if ( !resp.exists() ){
+        return cb(null);
+      }
       cb(resp.val())
     })
   }
@@ -317,7 +321,7 @@ app: {
   },
   watchUserApps: function(cb){
     firebaseUserAppsRef.on('child_added', function(data){
-      if (!_.isNull(data.val())){
+      if ( data.exists() ){
         cb(data.key);
       }
     })
@@ -332,9 +336,10 @@ app: {
   getAll: getAllApps,
   getApps: getAppsInAppstore,
   getIDForName: function( appName, cb){
+    // this will only work on a single device
     firebaseUserAppsRef.orderByChild('name').equalTo(appName).on('value', function(data){
       debug( firebaseUserAppsRef.toString(), data.key, '>>>>', data.val() )
-      if ( _.isNull(data.val()) ){
+      if ( data.exists() ){
         return cb(new Error('No user installed firebase application:' + appName))
       }
       cb(null, _.keys(data.val())[0] );
