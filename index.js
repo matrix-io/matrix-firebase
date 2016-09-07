@@ -35,7 +35,7 @@ module.exports = {
       error.code = 'auth/no-custom-token-provided';
     }
     if (error) return cb(error);
-    
+
     debug('=====firebase====='.rainbow, token, '🔥 🔮')
 
     userToken = token;
@@ -62,6 +62,30 @@ module.exports = {
       debug('Using token: ', token);
       return cb(err);
     });
+},
+
+install: {
+  watch: function(appId, cb){
+    firebaseDeviceAppsRef.child(appId + '/public').on('child_changed', function(deviceApp){
+      var install = deviceApp.val();
+      debug('install.watch>', install);
+      if (install.runtime.status === 'pending'){
+        console.log('Application installing...');
+      } else if ( install.runtime.status === 'inactive'){
+        cb(null, 'Application install successful');
+      } else if ( install.runtime.status === 'error'){
+        cb('Application install error')
+      }
+    })
+  }
+},
+
+user:{
+  getAllApps: function(cb){
+    firebaseUserDevicesRef.once('value', function(data){
+      cb(data.val());
+    })
+  }
 },
 
 
@@ -114,6 +138,16 @@ device: {
       cb( null, s.val() )
     }, function ( e ) {
       cb( e )
+    })
+  },
+  list: function(cb){
+    firebaseUserDevicesRef.once('value', function( resp ){
+      cb(resp.val());
+    })
+  },
+  lookup: function( deviceId, cb ){
+    firebaseApp.database().ref('devices/' + deviceId + '/public').once('value', function () {
+      cb(resp.val())
     })
   }
 },
