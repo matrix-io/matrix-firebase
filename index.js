@@ -1,170 +1,38 @@
-var firebaseUserAppsRef;
-var firebaseAppstoreRef;
-var firebaseAppRefMap;
-var firebaseAppRecords;
-var firebaseDeviceRef;
-var firebaseUserDevicesRef;
-var firebaseQueueRef;
-var firebaseDeviceAppsRef;
-var refreshApps;
-var userToken;
+require('colors');
 
-var firebaseApp;
-
-var _ = require( 'lodash' );
+_ = require( 'lodash' );
+async = require('async');
 var D = require('debug');
-var debug = new D('firebase')
-var F = require('firebase');
-var async = require('async');
-var uuid = require('uuid')
-
-firebaseAppRecords = {};
-firebaseAppRefMap = {};
-
-//Worker tasks specs
-var specs = {
-  device_register: {
-    error_state: "error",
-    finished_state: "device-register-completed",
-    in_progress_state: "device-register-in-progress",
-    retries: 3,
-    start_state: "device-register",
-    timeout: 10000
-  },
-  application_install: {
-    error_state: "error",
-    in_progress_state: "application-install-in-progress",
-    retries: 3,
-    start_state: "application-install",
-    timeout: 10000
-  },
-  application_create: {
-    error_state: "error",
-    in_progress_state: "application-create-in-progress",
-    retries: 3,
-    start_state: "application-create",
-    timeout: 10000
-  }
-};
-
-/**
- *@method processTask
- *@parameter {Object} spec Json object that follows Firebase worker specs format
- *@parameter {Object} options Json object sent to the worker task
- *@parameter {Object} events Json object with function exectued for each respective worker state (start, progress, finished, error) 
- *@description Copy a file from a specific path to another.
- */
-var processTask = function (spec, options, events) {
-  debug('Processing a task with ', spec);
-  debug('OPTIONS: ', JSON.stringify(options));
-  //These events are optional
-  var error = !_.has(events, 'error') ? function (err) { } : events.error; //Called when the task finishes in an error state, includes the error (Timeout included)
-  var finished = !_.has(events, 'finished') ? function () { } : events.finished; //Called whenever the tasks reaches its final state
-  var start = !_.has(events, 'start') ? function () { } : events.start; //Called whenever the task is on its initial state (can happen more than once if spec.retries > 0)
-  var progress = !_.has(events, 'progress') ? function () { } : events.progress; //Called whenever the task state changes to progress (can happen more than once if spec.retries > 0)
-  
-  var key = firebaseQueueRef.push().key;
-  var update = {};
-  update[key] = options;
-  firebaseQueueRef.update(update);
-  var timeoutTimer = setTimeout(function () {
-    return error(new Error('Timeout processing worker task ' + key));
-  }, spec.timeout + (spec.timeout * spec.retries));
-  firebaseQueueRef.child(key).on('value', function (dataSnapshot) {
-    var task = dataSnapshot.val();
-
-    if (_.isNull(task) || _.isUndefined(task) || (spec.hasOwnProperty('finished_state') && task._state == spec.finished_state)) {
-      return finished();
-    } else { 
-      switch (task._state) {
-        case spec.start_state:
-          start();
-          break;
-        case spec.in_progress_state:
-          progress();
-          break;
-        case spec.error_state:
-          clearTimeout(timeoutTimer);
-          var generatedError = new Error('Error processing task ' + key);
-          if (task.hasOwnProperty('_error_details')) generatedError.details = task._error_details; 
-          return error(generatedError);
-        default:
-          clearTimeout(timeoutTimer);
-          var generatedError = new Error('Unable to create task ' + key);
-          if (task.hasOwnProperty('_error_details')) generatedError.details = task._error_details;
-          return error(generatedError);
-      }
-    }
-  });
-}
+debug = new D('firebase')
 
 module.exports = {
-  init: function (userId, deviceId, token, cb) {
-    debug('Init Firebase');
-    var error;
-    if (_.isUndefined(userId)) {
-      error = new Error('Firebase init needs a userId');
-      error.code = 'auth/no-user-id-provided';
-    }
-    if (_.isUndefined(token)) {
-      error = new Error('Firebase init needs a token');
-      error.code = 'auth/no-custom-token-provided';
-    }
-    if (error) return cb(error);
+  init: require('./lib/init'),
 
-    debug('=====firebase====='.rainbow, token, '🔥 🔮')
-
-    userToken = token;
-    var config = {
-      apiKey: 'AIzaSyC44wzkGlODJoKyRGbabB8TiRJnq9k7BuA',
-      authDomain: 'admobilize-testing.firebaseapp.com',
-      databaseURL: 'https://admobilize-testing.firebaseio.com',
-      storageBucket: 'admobilize-testing.appspot.com',
-    };
-
-    firebaseApp = F.initializeApp(config);
-
-    firebaseApp.auth().signInWithCustomToken(token).then(function(user) {
-      debug('Firebase Auth Success');
-      firebaseDeviceRef = firebaseApp.database().ref('devices/' + deviceId + '/public');
-      firebaseUserAppsRef = firebaseApp.database().ref('users/' + userId + '/devices/'+ deviceId + '/apps' );
-      firebaseAppstoreRef = firebaseApp.database().ref('appstore');
-      firebaseUserDevicesRef = firebaseApp.database().ref('users/' + userId + '/devices');
-      firebaseQueueRef = firebaseApp.database().ref('queue/tasks');
-      firebaseDeviceAppsRef = firebaseApp.database().ref('deviceapps/'+deviceId );
-      getAllApps( deviceId, cb );
-
-    }).catch(function (err) {
-      debug('Using token: ', token);
-      return cb(err);
-    });
-  },  
-
-install: {
-  watch: function(appId, cb){
-    firebaseDeviceAppsRef.child(appId + '/public').on('child_changed', function(deviceApp){
-      var install = deviceApp.val();
-      debug('install.watch>', install);
-      if (install.runtime.status === 'pending'){
-        console.log('Application installing...');
-      } else if ( install.runtime.status === 'inactive'){
-        cb(null, 'Application install successful');
-      } else if ( install.runtime.status === 'error'){
-        cb('Application install error')
-      }
-    })
-  }
-},
+install: require('./lib/install'),
 
 user:{
   getAllApps: function(cb){
     firebaseUserDevicesRef.on('value', function(data){
       cb(data.val());
     })
+  },
+  checkDevice: function( deviceId, cb ){
+    firebaseUserDevicesRef.child(deviceId).once('value',  function (resp) {
+      if ( resp.exists() ){
+        cb( null, resp.val() );
+      } else {
+        cb( null );
+      }
+    })
   }
 },
 
 device: {
+  ping: function(){
+    var d = new Date();
+    var now = Math.round(d.getTime() / 1000);
+    firebaseDeviceRef.child('/runtime/lastConnectionEvent').set(now);
+  },
   add: function (options, events) {
     var o = {
       _state: specs.device_register.start_state,
@@ -178,18 +46,31 @@ device: {
 
   },
   get: function ( cb ) {
-    firebaseDeviceRef.on( 'value', function ( s ) {
+    firebaseDeviceRef.once( 'value', function ( s ) {
       if ( !_.isNull( s.val() ) ) cb( null, s.val() )
     }, function ( e ) {
        cb( e )
     } )
   },
   getConfig: function ( cb ) {
-    firebaseDeviceRef.child('/config').on( 'value', function ( s ) {
+    firebaseDeviceRef.child('/config').once( 'value', function ( s ) {
        cb( null, s.val() )
     }, function ( e ) {
       cb( e )
     } )
+  },
+  getRuntime: function ( cb ) {
+    firebaseDeviceRef.child('/runtime').once( 'value', function ( s ) {
+       cb( null, s.val() )
+    }, function ( e ) {
+      cb( e )
+    } )
+  },
+  goOnline: function(cb){
+    firebaseDeviceRef.child('/runtime/online').set(true, cb);
+  },
+  goOffline: function(cb){
+    firebaseDeviceRef.child('/runtime/online').set(false, cb);
   },
   meta: function( cb ){
     firebaseDeviceRef.child('meta').once('value',  function ( s ) {
@@ -205,7 +86,7 @@ device: {
   },
   lookup: function( deviceId, cb ){
     //  TODO: this requires the device to exist, otherwise bugs out, catch error condition
-    firebaseApp.database().ref('devices/' + deviceId + '/public').on('value', function (resp) {
+    firebaseApp.database().ref('devices/' + deviceId + '/public').once('value', function (resp) {
       if ( !resp.exists() ){
         return cb(null);
       }
@@ -217,54 +98,9 @@ storage: {
   upload: function () {
   }
 },
-appstore: {
-  get: function(appId, cb){
-    firebaseAppstoreRef.child(appId).on('value', function (data) {
-      if ( !_.isNull(data.val())){
-        cb(data.val())
-      }
-    })
-  }
-},
+appstore: require('./lib/appstore'),
 app: {
   appKeys : appKeys,
-  add: function ( deviceId, config, policy ) {
-    var newAppId = uuid.v4();
-    var appName = config.name;
-
-    var newAppRef = getFirebaseAppRef(deviceId, newAppId);
-    // user-device record
-    //
-    //
-    async.parallel([
-      function setAppList(cb){
-        var o = {};
-        o[newAppId] = { name: appName };
-        firebaseUserAppsRef.set(o, cb);
-      },
-      function setAppConfig(cb){
-        // deviceapps
-        newAppRef.child( '/config' ).set( config, cb )
-
-      },
-      function setAppPolicy(cb){
-        // set policy
-        if ( !_.isUndefined(policy)){
-          newAppRef.child( '/policy' ).set( policy, cb )
-        } else { cb(); }
-
-      },
-      function setAppMeta(cb){
-        // set meta
-        newAppRef.child('/meta').set({ name: appName }, cb)
-      },
-    ], function(err){
-      if (err) console.error(err);
-
-      console.log(appName, newAppId, 'added to firebase ->', deviceId)
-      refreshApps();
-    })
-  },
 
   setConfig: function ( appId, config, cb ) {
     debug('set Config [fb]>', appId, config)
@@ -282,7 +118,7 @@ app: {
       cb(null, data.val())
     })
   },
-  install: function (token, deviceId, appId, versionId, policy, events) { 
+  install: function (token, deviceId, appId, versionId, policy, events ) {
     var options = {
       _state: specs.application_install.start_state,
       token: userToken,
@@ -291,7 +127,7 @@ app: {
       versionId: versionId,
       policy: policy
     };
-    
+
     processTask(specs.application_install, options, events);
 
   }, //install ends
@@ -408,6 +244,22 @@ app: {
       // user-device list
       firebaseAppList.child(appId).remove();
       delete firebaseAppList[appId];
+    }
+  },
+
+  watchStatus: function( appId, cb ){
+    firebaseDeviceAppsRef.child(appId).child('public/runtime/status').on('value', function(resp){
+      if ( resp.exists() ){
+        cb(resp.val());
+      }
+    });
+  },
+
+  setStatus: function( appId, status, cb ){
+    if ( _.isNull(status.match(/active|inactive|error/)) ) {
+      console.error('status must be active, inactive or error');
+    } else {
+    firebaseDeviceAppsRef.child(appId).child('public/runtime/status').set(status, cb);
     }
   }
 }
@@ -526,9 +378,3 @@ function getAppKeyFromName(name){
 }
 
 var appKeys = {};
-
-function genID(){
-  return _.map(Array(16), function(v, i){
-    return Math.floor(Math.random()*16).toString(16)
-  }).join( '' )
-}
