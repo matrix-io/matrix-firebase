@@ -12,9 +12,12 @@ var e = {};
 var files = fs.readdirSync(__dirname + '/lib')
 
   _.each(files, function (f) {
-    e[f.slice(0, -2)] = require('./lib/' + f);
+    e[f.slice(0, -3)] = require('./lib/' + f);
   })
 
+var v = JSON.parse(require('fs').readFileSync(__dirname + '/package.json')).version;
+
+debug( '🔥  [ MATRIX ] Firebase v'.red + v )
 // shortcut for API sanity
 e.init = e.util.init;
 
