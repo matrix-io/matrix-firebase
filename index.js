@@ -17,7 +17,7 @@ var files = fs.readdirSync(__dirname + '/lib')
 
 var v = JSON.parse(require('fs').readFileSync(__dirname + '/package.json')).version;
 
-debug( '🔥  [ MATRIX ] Firebase v'.red + v )
+debug( '🔥  [ MATRIX ] Firebase v'.red + v.grey )
 // shortcut for API sanity
 e.init = e.util.init;
 
