@@ -10,24 +10,16 @@ Firebase stores the following:
 
 Firebase is also responsible for notifying connecting services on app configuration changes, either from the CLI, a Deployment or the Dashboard.
 
+
+###### Bugs
+https://github.com/matrix-io/matrix-firebase/issues
+
+###### Questions
+http://community.matrix.one
+
+
 ## Methods
 
-`user`
-- `add(userId)` - don't use this, included for completeness
-- `get(userId)` - returns device objects
-- `remove(userId)` - removes user completely, DANGER
-
-`device`
-- `add(userId, deviceId)` - associates device with user
-- `get(userId, deviceId)` - retrieves apps for device
-- `remove(userId,deviceId)` 0 - remove device and all apps
-
-`app`
-- `add(userId, deviceId, appId, config)` - associates app + config with device
-- `update(userId, deviceId, appId, config)` - update a deep config variable without overwriting the whole thing
-- `get(userId, deviceId, appId)` - get config for an app
-- `onInstall(userId, deviceId, cb)` - watch a device for app installs
-- `onChange(userId, deviceId, appId, cb)` - watch an app for config changes
 
 
 ### Schema
