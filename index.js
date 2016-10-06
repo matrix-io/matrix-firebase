@@ -15,27 +15,29 @@ var files = fs.readdirSync(__dirname + '/lib')
     e[f.slice(0, -3)] = require('./lib/' + f);
   })
 
-var msg;
-var info = JSON.parse(require('fs').readFileSync(__dirname + '/package.json'));
-var currentVersion = info.version;
-require('https').get(
-  'https://raw.githubusercontent.com/matrix-io/matrix-firebase/master/package.json',
-function (res) {
-  var write = "";
-  res.on('data', function (c) {
-    write += c;
-  });
-  res.on('end', function (e) {
-    var remoteVersion = JSON.parse(write).version;
-    if (currentVersion === remoteVersion) {
-      msg = '(current)'.grey;
-    } else {
-      msg = '(can upgrade to '.yellow+ remoteVersion +')'.yellow
-    }
-    debug( '🔥  [ MATRIX ] Firebase v'.red + currentVersion.grey, msg )
-  });
-})
-
+  // do version check on debug
+  if ( process.env.hasOwnProperty('DEBUG')){
+    var msg;
+    var info = JSON.parse(require('fs').readFileSync(__dirname + '/package.json'));
+    var currentVersion = info.version;
+    require('https').get(
+      'https://raw.githubusercontent.com/matrix-io/matrix-firebase/master/package.json',
+    function (res) {
+      var write = "";
+      res.on('data', function (c) {
+        write += c;
+      });
+      res.on('end', function (e) {
+        var remoteVersion = JSON.parse(write).version;
+        if (currentVersion === remoteVersion) {
+          msg = '(current)'.grey;
+        } else {
+          msg = '(can upgrade to '.yellow+ remoteVersion +')'.yellow
+        }
+        debug( '🔥  [ MATRIX ] Firebase v'.red + currentVersion.grey, msg )
+      });
+    })
+  }
 
 // shortcut for API sanity
 e.init = e.util.init;
