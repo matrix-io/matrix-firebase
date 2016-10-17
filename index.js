@@ -31,6 +31,7 @@ var files = fs.readdirSync(__dirname + '/lib')
         var remoteVersion = JSON.parse(write).version;
         if (currentVersion === remoteVersion) {
           msg = '(current)'.grey;
+          e.current = true;
         } else {
           msg = '(can upgrade to '.yellow+ remoteVersion +')'.yellow
         }
