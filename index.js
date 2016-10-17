@@ -33,6 +33,7 @@ var files = fs.readdirSync(__dirname + '/lib')
           msg = '(current)'.grey;
           e.current = true;
         } else {
+          e.current = false;
           msg = '(can upgrade to '.yellow+ remoteVersion +')'.yellow
         }
         debug( '🔥  [ MATRIX ] Firebase v'.red + currentVersion.grey, msg )
