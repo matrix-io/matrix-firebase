@@ -10,7 +10,7 @@ var e = {};
 
 // add lib contents to export
 // only do files that end in .js
-  var files = require('fs').readdirSync(__dirname).filter(
+  var files = require('fs').readdirSync(__dirname + '/lib').filter(
     function(f){ return ( f.indexOf('.js') === f.length - 3 ) }
   );
 
