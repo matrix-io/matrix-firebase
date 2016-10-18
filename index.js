@@ -27,7 +27,7 @@ var files = fs.readdirSync(__dirname + '/lib')
       res.on('data', function (c) {
         write += c;
       });
-      res.on('end', function (e) {
+      res.on('end', function () {
         var remoteVersion = JSON.parse(write).version;
         if (currentVersion === remoteVersion) {
           msg = '(current)'.grey;
