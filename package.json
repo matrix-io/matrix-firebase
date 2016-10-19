@@ -18,7 +18,8 @@
     "matrix-os",
     "firebase"
   ],
-  "author": "Sean Canton <sean.canton@admobilize.com>",
+  "author": "AdMobilize <dev@admobilize.com>",
+  "maintainer": "Sean Canton <sean.canton@admobilize.com>",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/matrix-io/matrix-firebase/issues"
