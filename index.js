@@ -2,8 +2,9 @@ require('colors');
 
 _ = require( 'lodash' );
 async = require('async');
-var D = require('debug');
-debug = new D('firebase')
+DebugLog = require('debug');
+
+var debug = new DebugLog('firebase')
 
 var fs = require('fs');
 var e = {};
