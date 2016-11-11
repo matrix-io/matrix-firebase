@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ## Unreleased
 ### Changed
 - device.setOnline / setOffline also changes users>deviceId>online
+- app.watchStatus don't cb if status doesn't exist
 
 ## [1.0.24]
 ### Added
