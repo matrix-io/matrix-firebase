@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - device.setOnline / setOffline also changes users>deviceId>online
 - app.watchStatus don't cb if status doesn't exist
 - app.getStatus do cb if status does't exist
+- update search to filter results for match
 
 ## [1.0.24]
 ### Added
