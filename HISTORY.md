@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ## [Unreleased]
 ### Removed
 - Stopped setOnline / setOffline from changing user record
+### Added 
+- allowTracking, denyTracking, refs.userMeta
 
 ## [1.0.27]
 ### Changed
