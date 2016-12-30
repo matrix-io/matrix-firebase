@@ -45,6 +45,6 @@ var e = {};
   })
 
 // shortcut for API sanity
-e.init = e.util.init;
+e.initialize = e.util.init;
 
 module.exports = e;
