@@ -29,7 +29,7 @@
     "async": "^2.0.1",
     "colors": "^1.1.2",
     "debug": "^2.2.0",
-    "firebase": "^3.6.9",
+    "firebase": "^3.7.1",
     "jsonwebtoken": "^5.7.0",
     "lodash": "^4.11.1",
     "mockfirebase": "^0.12.0",
