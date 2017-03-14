@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Remove ping function
 - Setup device status to use workers
 
+## [1.1.2]
+### Changed
+- Modified search to return only visible items
+
 ## [1.1.0]
 ### Removed
 - Stopped setOnline / setOffline from changing user record
