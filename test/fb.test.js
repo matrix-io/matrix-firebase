@@ -35,7 +35,9 @@ describe( 'matrix firebase module', function () {
       if (err) console.error(err);
       var uid = jwt.decode(token).d.uid;
       fb.init(uid, process.env['MATRIX_DEVICE_SECRET'], token, done );
-  })
+    })
+  });
+  
   it( 'can add an app configuration', function ( done ) {
     fb.app.add('testapp', {
       config: true
